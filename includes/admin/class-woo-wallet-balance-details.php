@@ -103,6 +103,7 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 		// Query the user IDs for this page.
 		$wp_user_search = new WP_User_Query( $args );
 		$data           = array();
+		$base_currency  = $this->resolve_base_currency();
 		foreach ( $wp_user_search->get_results() as $user ) {
 			$data[] = apply_filters(
 				'woo_wallet_balance_details_list_table_item_data',
@@ -111,7 +112,7 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 					'username' => $user->data->user_login,
 					'name'     => $user->data->display_name,
 					'email'    => $user->data->user_email,
-					'balance'  => woo_wallet()->wallet->get_wallet_balance( $user->ID ),
+					'balance'  => woo_wallet()->wallet->get_wallet_balance( $user->ID, 'view', $base_currency ),
 					'actions'  => '',
 				),
 				$user
@@ -147,7 +148,7 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 
 		$count_users = ! wp_is_large_user_count();
 
-		$url = 'admin.php?page=woo-wallet';
+		$url = 'admin.php?page=woo-wallet-users';
 
 		$role_links   = array();
 		$avail_roles  = array();
@@ -163,12 +164,7 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 
 			$all_text = sprintf(
 				/* translators: %s: Number of users. */
-				_nx(
-					'All <span class="count">(%s)</span>',
-					'All <span class="count">(%s)</span>',
-					$total_users,
-					'users'
-				),
+				__( 'All <span class="count">(%s)</span>', 'woo-wallet' ),
 				number_format_i18n( $total_users )
 			);
 		}
@@ -230,11 +226,10 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 	 *                      or below the table ("bottom").
 	 */
 	protected function extra_tablenav( $which ) {
-		if ( 'top' === $which ) {
-			/* translators: WooCommerce currency */
-			echo( sprintf( "<label class='alignleft actions bulkactions'>%s(%s): <input name='amount' type='number' step='0.01' id='amount'></input></label>", esc_html__( 'Amount', 'woo-wallet' ), get_woocommerce_currency_symbol() ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			echo( sprintf( "<label class='alignleft actions bulkactions'>%s: <input name='description' type='text' id='description'></input></label>", esc_html__( 'Description', 'woo-wallet' ) ) );
-		}
+		// Amount + description for the Credit / Debit bulk actions are now
+		// captured in the WCBackboneModal opened by add_js_scripts() — see
+		// templates/admin/credit-debit-modal.php. Kept this hook for the
+		// `woo_wallet_users_list_extra_tablenav` extension surface.
 		do_action( 'woo_wallet_users_list_extra_tablenav', $which );
 	}
 
@@ -333,7 +328,7 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 
 		// Get actions.
 		$actions = array(
-			'edit' => '<a href="' . esc_url( $edit_balance_link ) . '" class="thickbox">' . esc_html__( 'Edit Balance', 'woo-wallet' ) . '</a>',
+			'edit' => '<a href="#" class="edit-wallet-balance" data-user-id="' . $user_object->ID . '">' . esc_html__( 'Edit Balance', 'woo-wallet' ) . '</a>',
 		);
 
 		if ( is_wallet_account_locked( $item['id'] ) ) {
@@ -358,23 +353,22 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 	 */
 	protected function column_total_deposits( $item ) {
 		$args           = array(
-			'user_id'    => $item['id'],
-			'where'      => array(
+			'user_id' => $item['id'],
+			'where'   => array(
 				array(
 					'key'   => 'type',
 					'value' => 'credit',
 				),
-			),
-			'where_meta' => array(
 				array(
-					'key'   => '_type',
-					'value' => 'credit_purchase',
+					'key'   => 'category',
+					'value' => 'topup',
 				),
 			),
 		);
 		$transactions   = get_wallet_transactions( $args );
-		$total_deposits = array_sum( wp_list_pluck( $transactions, 'amount' ) );
-		return wc_price( $total_deposits, woo_wallet_wc_price_args() );
+		$base           = $this->resolve_base_currency();
+		$total_deposits = $this->sum_transactions_in_base( $transactions, $base );
+		return wc_price( $total_deposits, woo_wallet_wc_price_args( $item['id'], array( 'currency' => $base ) ) );
 	}
 	/**
 	 * Render total spent column
@@ -383,41 +377,23 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 	 * @return string
 	 */
 	protected function column_total_spent( $item ) {
-		$args                  = array(
-			'user_id'    => $item['id'],
-			'where'      => array(
+		$base = $this->resolve_base_currency();
+		// Since 1.6.3 both legacy `_type='purchase'` and `_type='partial_payment'`
+		// rows are canonicalised to `category='partial_payment'` (see the
+		// 1.6.3 backfill + the write-path alias map). A single query suffices.
+		$args         = array(
+			'user_id'  => $item['id'],
+			'category' => array( 'purchase', 'partial_payment' ),
+			'where'    => array(
 				array(
 					'key'   => 'type',
 					'value' => 'debit',
 				),
 			),
-			'where_meta' => array(
-				array(
-					'key'   => '_type',
-					'value' => 'purchase',
-				),
-			),
 		);
-		$transactions          = get_wallet_transactions( $args );
-		$total_spent_by_wallet = array_sum( wp_list_pluck( $transactions, 'amount' ) );
-		$args                  = array(
-			'user_id'    => $item['id'],
-			'where'      => array(
-				array(
-					'key'   => 'type',
-					'value' => 'debit',
-				),
-			),
-			'where_meta' => array(
-				array(
-					'key'   => '_type',
-					'value' => 'partial_payment',
-				),
-			),
-		);
-		$transactions          = get_wallet_transactions( $args );
-		$total_partial_payment = array_sum( wp_list_pluck( $transactions, 'amount' ) );
-		return wc_price( $total_spent_by_wallet + $total_partial_payment, woo_wallet_wc_price_args() );
+		$transactions = get_wallet_transactions( $args );
+		$total_spent  = $this->sum_transactions_in_base( $transactions, $base );
+		return wc_price( $total_spent, woo_wallet_wc_price_args( $item['id'], array( 'currency' => $base ) ) );
 	}
 	/**
 	 * Render cashback earned column
@@ -427,23 +403,62 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 	 */
 	protected function column_cashbak_earned( $item ) {
 		$args           = array(
-			'user_id'    => $item['id'],
-			'where'      => array(
+			'user_id' => $item['id'],
+			'where'   => array(
 				array(
 					'key'   => 'type',
 					'value' => 'credit',
 				),
-			),
-			'where_meta' => array(
 				array(
-					'key'   => '_type',
+					'key'   => 'category',
 					'value' => 'cashback',
 				),
 			),
 		);
 		$transactions   = get_wallet_transactions( $args );
-		$total_cashback = array_sum( wp_list_pluck( $transactions, 'amount' ) );
-		return wc_price( $total_cashback, woo_wallet_wc_price_args() );
+		$base           = $this->resolve_base_currency();
+		$total_cashback = $this->sum_transactions_in_base( $transactions, $base );
+		return wc_price( $total_cashback, woo_wallet_wc_price_args( $item['id'], array( 'currency' => $base ) ) );
+	}
+
+	/**
+	 * Resolve the shop base currency for the totals columns, with a defensive
+	 * fallback when the currency manager isn't available (e.g. plugin loaded
+	 * out of order during activation).
+	 *
+	 * @return string ISO 4217 code.
+	 */
+	private function resolve_base_currency() {
+		if ( class_exists( 'Woo_Wallet_Currency_Manager' ) ) {
+			return Woo_Wallet_Currency_Manager::instance()->get_base_currency();
+		}
+		$base = get_option( 'woocommerce_currency' );
+		return is_string( $base ) && '' !== $base ? strtoupper( $base ) : 'USD';
+	}
+
+	/**
+	 * Sum a list of transaction rows after normalizing each row's amount to
+	 * the shop base currency. Rows already stored in base (the single_base
+	 * mode default) cost nothing — `Woo_Wallet_Currency_Manager::convert()`
+	 * short-circuits when `$from === $to`. On vanilla single-currency sites
+	 * every row's currency equals base, so this collapses to the previous
+	 * `array_sum( wp_list_pluck( ... ) )` semantics.
+	 *
+	 * @param array  $transactions Result of `get_wallet_transactions()`.
+	 * @param string $base         Base currency ISO code.
+	 * @return float
+	 */
+	private function sum_transactions_in_base( $transactions, $base ) {
+		if ( empty( $transactions ) ) {
+			return 0.0;
+		}
+		$manager = class_exists( 'Woo_Wallet_Currency_Manager' ) ? Woo_Wallet_Currency_Manager::instance() : null;
+		$total   = 0.0;
+		foreach ( $transactions as $row ) {
+			$row_currency = isset( $row->currency ) && '' !== $row->currency ? strtoupper( $row->currency ) : $base;
+			$total       += $manager ? (float) $manager->convert( $row->amount, $row_currency, $base ) : (float) $row->amount;
+		}
+		return $total;
 	}
 	/**
 	 * Render status column
@@ -471,10 +486,10 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 			if ( 'credit' === $this->current_action() ) {
 				$credit_ids  = isset( $_REQUEST['users'] ) ? array_map( 'intval', (array) $_REQUEST['users'] ) : array();
 				$amount      = isset( $_POST['amount'] ) ? floatval( sanitize_text_field( wp_unslash( $_POST['amount'] ) ) ) : 0;
-				$description = isset( $_POST['description'] ) ? sanitize_text_field( wp_unslash( $_POST['description'] ) ) : '';
+				$description = isset( $_POST['description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['description'] ) ) : '';
 				if ( $amount && $credit_ids ) {
 					foreach ( $credit_ids as $id ) {
-						woo_wallet()->wallet->credit( $id, $amount, $description );
+						woo_wallet()->wallet->credit( $id, $amount, $description, array( 'category' => 'adjustment' ) );
 					}
 				}
 				header( 'Refresh: 0' );
@@ -483,25 +498,30 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 			if ( 'debit' === $this->current_action() ) {
 				$debit_ids   = isset( $_REQUEST['users'] ) ? array_map( 'intval', (array) $_REQUEST['users'] ) : array();
 				$amount      = isset( $_POST['amount'] ) ? floatval( sanitize_text_field( wp_unslash( $_POST['amount'] ) ) ) : 0;
-				$description = isset( $_POST['description'] ) ? sanitize_text_field( wp_unslash( $_POST['description'] ) ) : '';
+				$description = isset( $_POST['description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['description'] ) ) : '';
 				if ( $amount && $debit_ids ) {
 					foreach ( $debit_ids as $id ) {
-						woo_wallet()->wallet->debit( $id, $amount, $description );
+						woo_wallet()->wallet->debit( $id, $amount, $description, array( 'category' => 'adjustment' ) );
 					}
 				}
 				header( 'Refresh: 0' );
 			}
 
 			if ( 'delete_log' === $this->current_action() ) {
-				$delete_ids = isset( $_REQUEST['users'] ) ? array_map( 'intval', (array) $_REQUEST['users'] ) : array();
+				$delete_ids       = isset( $_REQUEST['users'] ) ? array_map( 'intval', (array) $_REQUEST['users'] ) : array();
+				$delete_mode      = isset( $_POST['delete_mode'] ) && 'hard' === $_POST['delete_mode'] ? 'hard' : 'soft';
+				$balance_handling = isset( $_POST['balance_handling'] ) && 'wipe' === $_POST['balance_handling'] ? 'wipe' : 'keep';
+				$errors           = array();
 				if ( $delete_ids ) {
 					foreach ( $delete_ids as $id ) {
-						$current_balance = woo_wallet()->wallet->get_wallet_balance( $id, 'edit' );
-						delete_user_wallet_transactions( $id, true );
-						if ( $current_balance && apply_filters( 'woo_wallet_credit_user_after_delete_log', true ) ) {
-							woo_wallet()->wallet->credit( $id, $current_balance, __( 'Balance after deleting transaction logs', 'woo-wallet' ) );
+						$result = woo_wallet_purge_user_transactions( $id, $delete_mode, $balance_handling );
+						if ( is_wp_error( $result ) ) {
+							$errors[] = $result->get_error_message();
 						}
 					}
+				}
+				if ( $errors ) {
+					set_transient( 'woo_wallet_purge_error_' . get_current_user_id(), $errors, 30 );
 				}
 				header( 'Refresh: 0' );
 			}
@@ -538,20 +558,158 @@ class Woo_Wallet_Balance_Details extends WP_List_Table {
 	 * Add js for this page.
 	 */
 	public function add_js_scripts() {
-		$bulk_delete_log_msg = __( 'You are about to delete transaction records from database for selected users.', 'woo-wallet' );
+		$screen = get_current_screen();
+		if ( 'terawallet_page_woo-wallet-users' === $screen->id ) {
+			ob_start();
+			woo_wallet()->get_template( 'admin/edit-balance.php' );
+			woo_wallet()->get_template( 'admin/delete-log-modal.php' );
+			woo_wallet()->get_template( 'admin/credit-debit-modal.php' );
+			echo ob_get_clean(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			wp_enqueue_script( 'wc-backbone-modal' );
+			?>
+			<style>
+				/*
+				 * WP core hides .bulkactions and .tablenav .actions below 783px
+				 * (common.css). The Wallet > Users screen has no per-row inline
+				 * actions, so without an override the bulk Credit / Debit /
+				 * Delete-log controls disappear entirely on mobile. Re-enable
+				 * them and let the action select wrap to the next line below
+				 * the Apply button when the viewport is too narrow.
+				 */
+				@media screen and (max-width: 782px) {
+					.terawallet_page_woo-wallet-users .tablenav.top .bulkactions,
+					.terawallet_page_woo-wallet-users .tablenav .actions.bulkactions {
+						display: block;
+						width: 100%;
+						margin-bottom: 8px;
+						padding: 0;
+					}
+					.terawallet_page_woo-wallet-users .tablenav.top .bulkactions select,
+					.terawallet_page_woo-wallet-users .tablenav .actions.bulkactions select {
+						display: inline-block;
+						width: calc(100% - 90px);
+						max-width: 320px;
+						margin-right: 6px;
+						vertical-align: middle;
+					}
+					.terawallet_page_woo-wallet-users .tablenav.top .bulkactions input[type="submit"],
+					.terawallet_page_woo-wallet-users .tablenav .actions.bulkactions input[type="submit"] {
+						display: inline-block;
+						vertical-align: middle;
+					}
+				}
+			</style>
+			<?php
+		}
 		?>
 		<script type="text/javascript">
 			jQuery(function ($) {
-				$('.toplevel_page_woo-wallet #posts-filter').submit(function(){
-					if($('[name="action"]').val()=='delete_log' || $('[name="action2"]').val()=='delete_log'){
-						return confirm('<?php echo esc_html( $bulk_delete_log_msg ); ?>');
+				var $listForm = $('.terawallet_page_woo-wallet-users #posts-filter');
+
+				// Pick the action that's actually selected — bulkactions dropdowns
+				// duplicate the control above + below the table, so either one may
+				// hold the user's choice.
+				function selectedBulkAction() {
+					var top    = $listForm.find('[name="action"]').val();
+					var bottom = $listForm.find('[name="action2"]').val();
+					if (top && '-1' !== top) {
+						return top;
+					}
+					if (bottom && '-1' !== bottom) {
+						return bottom;
+					}
+					return '';
+				}
+
+				$listForm.on('submit', function (e) {
+					var action = selectedBulkAction();
+					if ('delete_log' === action) {
+						if ($(this).data('wooWalletDeleteConfirmed')) {
+							return true;
+						}
+						e.preventDefault();
+						$(this).WCBackboneModal({ template: 'woo-wallet-modal-delete-log' });
+						return false;
+					}
+					if ('credit' === action || 'debit' === action) {
+						if ($(this).data('wooWalletCreditDebitConfirmed')) {
+							return true;
+						}
+						// Need at least one row selected.
+						var checked = $listForm.find('input[name="users[]"]:checked').length;
+						if (!checked) {
+							return true; // Let WP's native "no items selected" handling run.
+						}
+						e.preventDefault();
+						$(this).data('wooWalletPendingAction', action);
+						$(this).WCBackboneModal({ template: 'woo-wallet-modal-credit-debit' });
+						// Set the modal title + button label to match the chosen action.
+						var $modal = $('.woo-wallet-credit-debit');
+						if ('credit' === action) {
+							$modal.find('#woo-wallet-credit-debit-title').text('<?php echo esc_js( __( 'Credit wallet balance', 'woo-wallet' ) ); ?>');
+							$modal.find('#woo-wallet-confirm-credit-debit').text('<?php echo esc_js( __( 'Credit', 'woo-wallet' ) ); ?>');
+						} else {
+							$modal.find('#woo-wallet-credit-debit-title').text('<?php echo esc_js( __( 'Debit wallet balance', 'woo-wallet' ) ); ?>');
+							$modal.find('#woo-wallet-confirm-credit-debit').text('<?php echo esc_js( __( 'Debit', 'woo-wallet' ) ); ?>');
+						}
+						return false;
 					}
 					return true;
+				});
+				$(document).on('click', '#woo-wallet-confirm-delete-log', function (e) {
+					e.preventDefault();
+					var $modal    = $(this).closest('.wc-backbone-modal');
+					var mode      = $modal.find('input[name="woo_wallet_delete_mode"]:checked').val() || 'soft';
+					var handling  = $modal.find('input[name="woo_wallet_balance_handling"]:checked').val() || 'keep';
+					$listForm.find('input[name="delete_mode"], input[name="balance_handling"]').remove();
+					$listForm.append($('<input>').attr({ type: 'hidden', name: 'delete_mode', value: mode }));
+					$listForm.append($('<input>').attr({ type: 'hidden', name: 'balance_handling', value: handling }));
+					$listForm.data('wooWalletDeleteConfirmed', true);
+					$('.wc-backbone-modal-backdrop.modal-close').trigger('click');
+					$listForm[0].submit();
+				});
+				$(document).on('click', '#woo-wallet-confirm-credit-debit', function (e) {
+					e.preventDefault();
+					var $modal      = $(this).closest('.wc-backbone-modal');
+					var amount      = parseFloat($modal.find('#woo-wallet-bulk-amount').val());
+					var description = $modal.find('#woo-wallet-bulk-description').val() || '';
+					if (isNaN(amount) || amount <= 0) {
+						$modal.find('#woo-wallet-bulk-amount').focus();
+						return false;
+					}
+					$listForm.find('input[name="amount"], input[name="description"]').remove();
+					$listForm.append($('<input>').attr({ type: 'hidden', name: 'amount', value: amount }));
+					$listForm.append($('<input>').attr({ type: 'hidden', name: 'description', value: description }));
+					$listForm.data('wooWalletCreditDebitConfirmed', true);
+					$('.wc-backbone-modal-backdrop.modal-close').trigger('click');
+					$listForm[0].submit();
+				});
+				$(document).on('click', '.terawallet_page_woo-wallet-users .edit-wallet-balance', function (event) {
+					event.preventDefault();
+					var self = $(this);
+					self.html('<?php echo esc_js( __( 'Loading...', 'woo-wallet' ) ); ?>');
+					var $user_id = $(this).data('userId');
+					$.ajax({
+						url:     '<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>',
+						data:    {
+							user_id: $user_id,
+							action  : 'get_edit_wallet_balance_template_data',
+							security: '<?php echo esc_js( wp_create_nonce( 'woo-wallet-edit-balance-template-data' ) ); ?>'
+						},
+						type:    'GET',
+						success: function( response ) {
+							if ( response.success ) {
+								$( this ).WCBackboneModal({
+									template: 'woo-wallet-modal-edit-balance',
+									variable : response.data
+								});
+							}
+							self.html('<?php echo esc_js( __( 'Edit Balance', 'woo-wallet' ) ); ?>');
+						}
+					});
 				});
 			});
 		</script>
 		<?php
-
 	}
-
 }

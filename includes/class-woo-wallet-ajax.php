@@ -46,7 +46,12 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 			add_action( 'wp_ajax_woo-wallet-dismiss-promotional-notice', array( $this, 'woo_wallet_dismiss_promotional_notice' ) );
 			add_action( 'wp_ajax_draw_wallet_transaction_details_table', array( $this, 'draw_wallet_transaction_details_table' ) );
 
-			add_action( 'woocommerce_order_after_calculate_totals', array( $this, 'recalculate_order_cashback_after_calculate_totals' ), 10, 2 );
+			// NOTE: woocommerce_order_after_calculate_totals was removed in 1.6.1 (R4).
+		// It fired on every cart calculation in admin, rewrote the cashback row amount
+		// directly via update_wallet_transaction(), bypassed the lock, and desynchronised
+		// the _current_woo_wallet_balance cache. The explicit "Recalculate cashback" order
+		// action (woocommerce_order_action_recalculate_order_cashback) now performs the
+		// same recalculation via a compensating ledger row through adjust_cashback().
 
 			add_action( 'wp_ajax_terawallet_export_user_search', array( $this, 'terawallet_export_user_search' ) );
 
@@ -54,7 +59,7 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 
 			add_action( 'wp_ajax_lock_unlock_terawallet', array( $this, 'lock_unlock_terawallet' ) );
 
-			add_action( 'wp_ajax_get_edit_wallet_balance_template', array( $this, 'edit_wallet_balance_template' ) );
+			add_action( 'wp_ajax_get_edit_wallet_balance_template_data', array( $this, 'edit_wallet_balance_template_data' ) );
 		}
 		/**
 		 * Lock / Unlock user wallet
@@ -156,9 +161,14 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 		 * Search users for export transactions.
 		 */
 		public function terawallet_export_user_search() {
-			check_ajax_referer( 'search-user', 'security' );
-			// Check permissions again and make sure we have what we need.
-			if ( ! get_wallet_user_capability() ) {
+			// Dedicated admin-exporter nonce — never localized on the front-end My Account
+			// page, so a Subscriber-obtainable nonce cannot reach this handler.
+			check_ajax_referer( 'terawallet-export-search-user', 'security' );
+			// Admin-only exporter search: verify the user actually holds the wallet capability.
+			// NOTE: get_wallet_user_capability() returns a capability *string* (truthy), so the
+			// previous `! get_wallet_user_capability()` guard never fired — it must be wrapped
+			// in current_user_can(). This fixes the Subscriber+ user/email enumeration flaw.
+			if ( ! current_user_can( get_wallet_user_capability() ) ) {
 				wp_die( -1 );
 			}
 			$term    = isset( $_POST['term'] ) ? sanitize_text_field( wp_unslash( $_POST['term'] ) ) : '';
@@ -186,18 +196,17 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 		/**
 		 * Recalculate and send order cashback.
 		 *
-		 * @param Bool     $and_taxes Description.
-		 * @param WC_Order $order order.
+		 * @deprecated 1.6.1 Hook was removed in 1.6.1 (R4). This method stub is
+		 *   kept so any code that references it by name doesn't fatal. The real
+		 *   recompute path is now the explicit "Recalculate cashback" order action
+		 *   in Woo_Wallet_Admin::recalculate_order_cashback() which writes a
+		 *   compensating ledger row via Woo_Wallet_Wallet::adjust_cashback().
+		 *
+		 * @param bool     $and_taxes Description.
+		 * @param WC_Order $order     order.
 		 */
 		public function recalculate_order_cashback_after_calculate_totals( $and_taxes, $order ) {
-			if ( ! is_a( $order, 'WC_Order' ) ) {
-				return;
-			}
-			$cashback_amount = woo_wallet()->cashback->calculate_cashback( false, $order->get_id(), true );
-			$transaction_id  = $order->get_meta( '_general_cashback_transaction_id' );
-			if ( $transaction_id ) {
-				update_wallet_transaction( $transaction_id, $order->get_customer_id(), array( 'amount' => $cashback_amount ), array( '%f' ) );
-			}
+			// No-op since 1.6.1 — hook was removed to stop silent in-place amount mutations.
 		}
 
 		/**
@@ -306,8 +315,10 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 					$response['status'] = 'fully_refunded';
 				}
 			} catch ( Exception $e ) {
+				ob_end_clean(); // Discard any stray output so the JSON response is clean.
 				wp_send_json_error( array( 'error' => $e->getMessage() ) );
 			}
+			ob_end_clean(); // Discard any stray output so the JSON response is clean.
 			// wp_send_json_success must be outside the try block not to break phpunit tests.
 			wp_send_json_success( $response );
 		}
@@ -386,7 +397,8 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 			if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'woo_wallet_admin' ) ) {
 				wp_send_json_error( __( 'Invalid nonce', 'woo-wallet' ) );
 			}
-			update_option( '_woo_wallet_promotion_dismissed', true );
+			// Permanent dismissal — the notice must not re-nag (WordPress.org guideline).
+			update_option( '_woo_wallet_promotion_snoozed_until', PHP_INT_MAX );
 			wp_send_json_success();
 		}
 
@@ -395,38 +407,37 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 		 */
 		public function draw_wallet_transaction_details_table() {
 			check_ajax_referer( 'woo-wallet-transactions', 'security' );
-			$start  = isset( $_POST['start'] ) ? sanitize_text_field( wp_unslash( $_POST['start'] ) ) : 0;
-			$length = isset( $_POST['length'] ) ? sanitize_text_field( wp_unslash( $_POST['length'] ) ) : 10;
-			$search = isset( $_POST['search'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['search'] ) ) : '';
-			$args   = array(
-				'limit' => "$start, $length",
+			$page      = isset( $_POST['page'] ) ? max( 1, absint( wp_unslash( $_POST['page'] ) ) ) : 1;
+			$size      = isset( $_POST['size'] ) ? max( 1, absint( wp_unslash( $_POST['size'] ) ) ) : 10;
+			$start     = ( $page - 1 ) * $size;
+			$date_from = isset( $_POST['date_from'] ) ? sanitize_text_field( wp_unslash( $_POST['date_from'] ) ) : '';
+			$date_to   = isset( $_POST['date_to'] ) ? sanitize_text_field( wp_unslash( $_POST['date_to'] ) ) : '';
+			$args      = array(
+				'limit' => "$start,$size",
 			);
-			if ( isset( $search['value'] ) && ! empty( $search['value'] ) ) {
-				$args['where'] = array(
-					array(
-						'key'      => 'date',
-						'value'    => esc_sql( $search['value'] ) . '%',
-						'operator' => 'LIKE',
-					),
-				);
+			if ( $date_from && $date_to ) {
+				$args['after']  = $date_from . ' 00:00:00';
+				$args['before'] = $date_to . ' 23:59:59';
 			}
 			$transactions = get_wallet_transactions( $args );
 			unset( $args['limit'] );
-			$records_total = get_wallet_transactions_count( get_current_user_id() );
+			$records_filtered = count( get_wallet_transactions( $args ) );
+			$last_page        = max( 1, (int) ceil( $records_filtered / $size ) );
 
 			$response = array(
-				'draw'            => isset( $_POST['draw'] ) ? sanitize_text_field( wp_unslash( $_POST['draw'] ) ) : 1,
-				'recordsTotal'    => $records_total,
-				'recordsFiltered' => count( get_wallet_transactions( $args ) ),
-				'data'            => array(),
+				'last_page' => $last_page,
+				'data'      => array(),
 			);
 			if ( $transactions ) {
+				$active_currency = class_exists( 'Woo_Wallet_Currency_Manager' )
+					? Woo_Wallet_Currency_Manager::instance()->get_active_currency()
+					: strtoupper( (string) get_woocommerce_currency() );
 				foreach ( $transactions as $transaction ) {
 					$response['data'][] = apply_filters(
 						'woo_wallet_transactons_datatable_row_data',
 						array(
 							'id'      => $transaction->transaction_id,
-							'amount'  => '<mark class="' . esc_attr( $transaction->type ) . '">' . wc_price( apply_filters( 'woo_wallet_amount', $transaction->amount, $transaction->currency, $transaction->user_id ), woo_wallet_wc_price_args( $transaction->user_id ) ) . '</mark>',
+							'amount'  => '<mark class="' . esc_attr( $transaction->type ) . '">' . ( 'credit' === $transaction->type ? '+' : '-' ) . wc_price( apply_filters( 'woo_wallet_amount', $transaction->amount, $transaction->currency, $transaction->user_id ), woo_wallet_wc_price_args( $transaction->user_id, array( 'currency' => $active_currency ) ) ) . '</mark>',
 							'details' => wp_kses_post( $transaction->details ),
 							'date'    => wc_string_to_datetime( $transaction->date )->date_i18n( wc_date_format() ),
 							'type'    => esc_html( ucfirst( $transaction->type ) ),
@@ -438,17 +449,25 @@ if ( ! class_exists( 'Woo_Wallet_Ajax' ) ) {
 			wp_send_json( $response );
 		}
 		/**
-		 * Return edit wallet template for thickbox.
+		 * Return edit wallet template data for WCBackboneModal.
 		 *
 		 * @return void
 		 */
-		public function edit_wallet_balance_template() {
-			check_ajax_referer( 'woo-wallet-edit-balance-template', 'security' );
+		public function edit_wallet_balance_template_data() {
+			check_ajax_referer( 'woo-wallet-edit-balance-template-data', 'security' );
 			$user_id = isset( $_REQUEST['user_id'] ) ? absint( $_REQUEST['user_id'] ) : 0;
-			ob_start();
-			woo_wallet()->get_template( 'admin/edit-balance.php', array( 'user_id' => $user_id ) );
-			echo ob_get_clean(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			wp_die();
+			if ( $user_id ) {
+				if ( ! current_user_can( 'edit_user', $user_id ) ) {
+					wp_die( -1 );
+				}
+				wp_send_json_success(
+					array(
+						'user_id'         => $user_id,
+						'current_balance' => woo_wallet()->wallet->get_wallet_balance( $user_id ),
+					)
+				);
+			}
+			wp_send_json_error( array( 'error' => __( 'User not found', 'woo-wallet' ) ) );
 		}
 	}
 

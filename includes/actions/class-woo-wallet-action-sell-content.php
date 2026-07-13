@@ -155,7 +155,7 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 *
 	 * @return array
 	 */
-	public static function get_post_types_options() : array {
+	public static function get_post_types_options() {
 		$post_types_objects = get_post_types(
 			array(
 				'public' => true,
@@ -180,7 +180,7 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 * @since  1.0.0
 	 * @return string
 	 */
-	public function generate_wysiwyg_html( $key, $data ) : string {
+	public function generate_wysiwyg_html( $key, $data ) {
 		$field_key = $this->get_field_key( $key );
 		$defaults  = array(
 			'title'             => '',
@@ -275,6 +275,11 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 			return $post_id;
 		}
 
+		// Check the user has permission to edit the post.
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return $post_id;
+		}
+
 		/* OK, it's safe for us to save the data now. */
 		if ( isset( $_POST['tw_sell_content'] ) ) {
 			update_post_meta( $post_id, '_tw_sell_content', '1' );
@@ -347,7 +352,7 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 * @param string $content content.
 	 * @return string
 	 */
-	public function validate_content_for_sale( $content ) : string {
+	public function validate_content_for_sale( $content ) {
 		global $post;
 		$user_id         = get_current_user_id();
 		$post_types      = (array) $this->settings['post_types'];
@@ -383,7 +388,7 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 * @param string $id id.
 	 * @return string
 	 */
-	private function render_settings_template( $template_option_name, $amount = 0, $id = 'tw-sell-content' ) : string {
+	private function render_settings_template( $template_option_name, $amount = 0, $id = 'tw-sell-content' ) {
 		global $post;
 		$content = $this->settings[ $template_option_name ];
 		if ( ! $amount ) {
@@ -395,7 +400,26 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 		$content = str_replace( '#buy_button#', $this->render_buy_form( $tw_sell_content_amount, $id ), $content );
 		$content = str_replace( '#price#', wc_price( $tw_sell_content_amount ), $content );
 		$content = str_replace( '#balance#', woo_wallet()->wallet->get_wallet_balance(), $content );
-		return do_shortcode( $content );
+		return wp_kses( do_shortcode( $content ), $this->get_allowed_template_html() );
+	}
+	/**
+	 * Allowed HTML for sell-content templates: post-content tags plus the form
+	 * controls used by the generated buy button, so escaping does not strip the form.
+	 *
+	 * @return array
+	 */
+	private function get_allowed_template_html() {
+		$allowed = wp_kses_allowed_html( 'post' );
+
+		$allowed['form']     = array( 'method' => true, 'action' => true, 'class' => true, 'id' => true );
+		$allowed['input']    = array( 'type' => true, 'name' => true, 'value' => true, 'class' => true, 'id' => true, 'min' => true, 'max' => true, 'step' => true, 'placeholder' => true, 'required' => true );
+		$allowed['button']   = array( 'type' => true, 'name' => true, 'value' => true, 'class' => true, 'id' => true );
+		$allowed['select']   = array( 'name' => true, 'class' => true, 'id' => true );
+		$allowed['option']   = array( 'value' => true, 'selected' => true );
+		$allowed['label']    = array( 'for' => true, 'class' => true );
+		$allowed['textarea'] = array( 'name' => true, 'rows' => true, 'cols' => true, 'class' => true, 'id' => true );
+
+		return $allowed;
 	}
 	/**
 	 * Render buy button
@@ -404,13 +428,13 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 * @param string $id id.
 	 * @return string
 	 */
-	private function render_buy_form( $amount, $id ) : string {
+	private function render_buy_form( $amount, $id ) {
 		global $post;
 		$user_id = get_current_user_id();
 		ob_start();
 		?>
 		<form method="post">
-			<?php wp_nonce_field( 'tw_buy_content_nonce_' . $amount, 'tw_buy_content_nonce' ); ?>
+			<?php wp_nonce_field( 'tw_buy_content_nonce_' . $post->ID . '_' . $user_id . '_' . $amount, 'tw_buy_content_nonce' ); ?>
 			<input type="hidden" name="amount" value="<?php echo esc_attr( $amount ); ?>">
 			<input type="hidden" name="transient" value="<?php echo esc_attr( md5( 'tw-sell-content' . $post->ID . $user_id . $amount ) ); ?>">
 			<button type="submit" class="<?php echo esc_attr( $this->settings['button_css_class'] ); ?>"><?php echo esc_html( $this->settings['button_lable'] ); ?></button>
@@ -425,7 +449,7 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 * @param string $id id.
 	 * @return boolean
 	 */
-	private function has_paid( $amount, $id = 'tw-sell-content' ) : bool {
+	private function has_paid( $amount, $id = 'tw-sell-content' ) {
 		global $post;
 		$user_id   = get_current_user_id();
 		$transient = md5( $id . $post->ID . $user_id . $amount );
@@ -436,13 +460,17 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 	 *
 	 * @return void
 	 */
-	public function handle_purchase_content() : void {
+	public function handle_purchase_content() {
 		global $post;
 		if ( isset( $_POST['tw_buy_content_nonce'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-			$amount = isset( $_POST['amount'] ) ? sanitize_text_field( wp_unslash( $_POST['amount'] ) ) : 0;
-			if ( wp_verify_nonce( wp_unslash( $_POST['tw_buy_content_nonce'] ), 'tw_buy_content_nonce_' . $amount ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-				$user_id                = get_current_user_id();
-				$transient              = isset( $_POST['transient'] ) ? sanitize_text_field( wp_unslash( $_POST['transient'] ) ) : md5( 'tw-sell-content' . $post->ID . $user_id . $amount );
+			if ( ! is_user_logged_in() ) {
+				return;
+			}
+			$amount  = isset( $_POST['amount'] ) ? sanitize_text_field( wp_unslash( $_POST['amount'] ) ) : 0;
+			$user_id = get_current_user_id();
+			// Verify nonce bound to post ID, user ID and amount.
+			if ( wp_verify_nonce( wp_unslash( $_POST['tw_buy_content_nonce'] ), 'tw_buy_content_nonce_' . $post->ID . '_' . $user_id . '_' . $amount ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				$transient              = md5( 'tw-sell-content' . $post->ID . $user_id . $amount );
 				$tw_sell_content_amount = floatval( $amount );
 				$title                  = get_the_title();
 				$post_link              = get_permalink();
@@ -509,6 +537,5 @@ class Woo_Wallet_Action_Sell_Content extends WooWalletAction {
 		}
 		return do_shortcode( $content );
 	}
-
 }
 

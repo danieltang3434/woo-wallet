@@ -36,6 +36,25 @@ class Woo_Wallet_Install {
 		'1.3.21' => array(
 			'woo_wallet_update_1321_db_column',
 		),
+		'1.5.18' => array(
+			'woo_wallet_update_1518_db_schema',
+		),
+		'1.6.0'  => array(
+			'woo_wallet_update_160_db_schema',
+		),
+		'1.6.1'  => array(
+			'woo_wallet_update_161_db_schema',
+			'woo_wallet_update_161_merge_action_settings',
+		),
+		'1.6.2'  => array(
+			'woo_wallet_update_162_db_schema',
+		),
+		'1.6.3'  => array(
+			'woo_wallet_update_163_db_schema',
+		),
+		'1.6.4'  => array(
+			'woo_wallet_update_164_flag_legacy_currency_normalize',
+		),
 	);
 	/**
 	 * Class constructor.
@@ -88,16 +107,24 @@ class Woo_Wallet_Install {
             blog_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
             user_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
             type ENUM('credit', 'debit') NOT NULL,
+            category VARCHAR(32) NOT NULL DEFAULT 'other',
             amount DECIMAL( 16,8 ) NOT NULL,
-            balance DECIMAL( 16,8 ) NOT NULL,
+            original_amount DECIMAL( 16,8 ) NULL,
+            original_currency varchar(20 ) NULL,
+            original_rate DECIMAL( 20,10 ) NULL,
+            mode TINYINT UNSIGNED NOT NULL DEFAULT 0,
             currency varchar(20 ) NOT NULL,
             details longtext NULL,
             created_by BIGINT UNSIGNED NOT NULL DEFAULT 1,
             deleted tinyint(1 ) NOT NULL DEFAULT 0,
             date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (transaction_id ),
-            KEY user_id (user_id )
-        ) $collate;
+            KEY user_id (user_id ),
+            KEY idx_user_deleted (user_id, deleted ),
+            KEY idx_user_date (user_id, date ),
+            KEY idx_user_currency (user_id, currency, deleted ),
+            KEY idx_user_category (user_id, category, deleted )
+        ) ENGINE=InnoDB $collate;
         CREATE TABLE {$wpdb->base_prefix}woo_wallet_transaction_meta (
             meta_id BIGINT UNSIGNED NOT NULL auto_increment,
             transaction_id BIGINT UNSIGNED NOT NULL,
@@ -106,8 +133,57 @@ class Woo_Wallet_Install {
             PRIMARY KEY  (meta_id ),
             KEY transaction_id (transaction_id ),
             KEY meta_key (meta_key(32 ) )
-        ) $collate;";
+        ) ENGINE=InnoDB $collate;";
+		$tables .= "\n" . self::get_referrals_schema();
 		return $tables;
+	}
+
+	/**
+	 * Referral tracking table schema.
+	 *
+	 * Each row is one referral event — a credited visitor click or a sign-up
+	 * (pending or credited). It is the source of truth for referral reporting,
+	 * replacing the legacy scattered `_woo_wallet_referring_*` user meta. The
+	 * reward `amount` is stored together with the `currency` it was credited in
+	 * (the store base currency) so every display path can reconvert it.
+	 *
+	 * Kept as a separate method so the 1.6.2 upgrade migration can create the
+	 * table on existing installs without re-running the full schema.
+	 *
+	 * @global object $wpdb
+	 * @return string
+	 */
+	public static function get_referrals_schema() {
+		global $wpdb;
+		$collate = '';
+
+		if ( $wpdb->has_cap( 'collation' ) ) {
+			$collate = $wpdb->get_charset_collate();
+		}
+
+		return "CREATE TABLE {$wpdb->base_prefix}woo_wallet_referrals (
+            referral_id BIGINT UNSIGNED NOT NULL auto_increment,
+            blog_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
+            referrer_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            referred_user_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            type ENUM('visit', 'signup') NOT NULL,
+            referral_code varchar(191 ) NULL,
+            status ENUM('pending', 'completed', 'rejected') NOT NULL DEFAULT 'pending',
+            amount DECIMAL( 16,8 ) NOT NULL DEFAULT 0,
+            currency varchar(20 ) NOT NULL DEFAULT '',
+            transaction_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            reject_reason varchar(191 ) NULL,
+            date_created timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            date_credited datetime NULL,
+            PRIMARY KEY  (referral_id ),
+            KEY referrer_id (referrer_id ),
+            KEY idx_referrer_type_status (referrer_id, type, status ),
+            KEY idx_referrer_date (referrer_id, date_created ),
+            KEY idx_referred_status (referred_user_id, status ),
+            KEY transaction_id (transaction_id ),
+            KEY blog_id (blog_id )
+        ) ENGINE=InnoDB $collate;";
 	}
 	/**
 	 * Create rechargeable product if not exist
@@ -202,7 +278,6 @@ class Woo_Wallet_Install {
 		delete_option( 'woo_wallet_db_version' );
 		add_option( 'woo_wallet_db_version', is_null( $version ) ? WOO_WALLET_PLUGIN_VERSION : $version );
 	}
-
 }
 
 new Woo_Wallet_Install();

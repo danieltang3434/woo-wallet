@@ -1,9 +1,17 @@
 <?php
+/**
+ * Abstract class for WooWallet actions.
+ *
+ * @package WooWallet
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+/**
+ * Abstract class for WooWallet actions.
+ */
 abstract class WooWalletAction extends WC_Settings_API {
 
 	/**
@@ -71,31 +79,69 @@ abstract class WooWalletAction extends WC_Settings_API {
 		return 'yes' === $this->enabled ? true : false;
 	}
 	/**
-	 * Process admin option.
-	 */
-	public function admin_options() {
-		if ( $this->get_post_data() ) {
-			if ( isset( $_POST['_wpnonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), 'wallet-action-settings' ) ) {
-				parent::process_admin_options();
-				add_settings_error( $this->id, '200', __( 'Your settings have been saved.', 'woo-wallet' ), 'updated' );
-			} else {
-				add_settings_error( $this->id, '200', __( 'Cheatin&#8217; huh?', 'woo-wallet' ), 'error' );
-			}
-		}
-		echo '<h2>' . esc_html( $this->get_action_title() );
-		wc_back_link( __( 'Return to actions', 'woo-wallet' ), admin_url( 'admin.php?page=woo-wallet-actions' ) );
-		settings_errors();
-		echo '</h2>';
-		echo wp_kses_post( wpautop( $this->get_action_description() ) );
-		parent::admin_options();
-	}
-
-	/**
-	 * Init settings for gateways.
+	 * Populate $this->settings from the unified `_wallet_settings_actions`
+	 * option, falling back to the legacy per-action option for back-compat.
+	 *
+	 * In the merged option, every field is stored under `{$this->id}__{$key}`;
+	 * this method strips the prefix so action subclasses can keep reading
+	 * `$this->settings['amount']` unchanged. If no merged keys are present
+	 * (fresh install or third-party action that still writes its own option),
+	 * the parent WC_Settings_API loader is used.
 	 */
 	public function init_settings() {
-		parent::init_settings();
+		$merged    = get_option( '_wallet_settings_actions', array() );
+		$prefix    = $this->id . '__';
+		$prefix_ln = strlen( $prefix );
+		$extracted = array();
+
+		if ( is_array( $merged ) ) {
+			foreach ( $merged as $key => $value ) {
+				if ( 0 === strpos( $key, $prefix ) ) {
+					$extracted[ substr( $key, $prefix_ln ) ] = $value;
+				}
+			}
+		}
+
+		if ( ! empty( $extracted ) ) {
+			$this->init_form_fields();
+			$this->settings = array();
+			$form_fields    = $this->get_form_fields();
+			if ( is_array( $form_fields ) ) {
+				foreach ( $form_fields as $key => $field ) {
+					$this->settings[ $key ] = array_key_exists( $key, $extracted )
+						? $extracted[ $key ]
+						: ( isset( $field['default'] ) ? $field['default'] : '' );
+				}
+			} else {
+				$this->settings = $extracted;
+			}
+		} else {
+			parent::init_settings();
+		}
+
 		$this->enabled = ! empty( $this->settings['enabled'] ) && 'yes' === $this->settings['enabled'] ? 'yes' : 'no';
 	}
 
+	/**
+	 * Resolve the store base currency.
+	 *
+	 * Earning-action `amount` settings are entered and saved in the store's
+	 * base currency. When crediting the wallet, the amount must therefore be
+	 * recorded against the base currency — otherwise `recode_transaction()`
+	 * defaults the incoming currency to the active storefront currency and
+	 * applies an unwanted conversion to a value that is already in base.
+	 *
+	 * Guarded with `class_exists` because actions can be instantiated before
+	 * the multi-currency stack is loaded; falls back to the raw WooCommerce
+	 * currency option.
+	 *
+	 * @return string ISO 4217 currency code.
+	 */
+	protected function get_base_currency() {
+		if ( class_exists( 'Woo_Wallet_Currency_Manager' ) ) {
+			return Woo_Wallet_Currency_Manager::instance()->get_base_currency();
+		}
+		$currency = get_option( 'woocommerce_currency' );
+		return is_string( $currency ) && '' !== $currency ? strtoupper( $currency ) : 'USD';
+	}
 }

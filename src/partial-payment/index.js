@@ -6,11 +6,13 @@ import { ExperimentalOrderMeta, ExperimentalDiscountsMeta } from '@woocommerce/b
 import { getSetting } from '@woocommerce/settings';
 import { __, sprintf } from '@wordpress/i18n';
 import { decodeEntities } from '@wordpress/html-entities';
-import { useState } from '@wordpress/element';
+import { useState, useRef } from '@wordpress/element';
 import {
-	Panel,
 	ValidatedTextInput,
 	ValidationInputError,
+	ValidatedTextInputHandle,
+	Panel,
+	Spinner,
 	Button
 } from '@woocommerce/blocks-components';
 
@@ -63,14 +65,14 @@ const render = () => {
 				<Panel
 					className="wc-block-components-partial-payment-panel"
 					initialOpen={false}
-					hasBorder={false}
+					hasBorder={true}
+					headingLevel={ 2 }
 					title={
 						<span className="wc-block-components-partial-payment-panel__button-text">
 							{ /* translators: 1: Wallet amount */ sprintf(__('You have %s in your wallet to spend!', 'woo-wallet'), formatedBalance())}
 						</span>
 					}
 				>
-					<span>{__("Enter the amount you'd like to redeem", "woo-wallet")}</span>
 					<div class="wc-block-components-partial-payment">
 						<form
 							className="wc-block-components-partial-payment_form"
@@ -79,19 +81,30 @@ const render = () => {
 
 							<ValidatedTextInput
 								id={textInputId}
-								errorId="coupon"
+								errorId="partial-payment-error"
 								className="wc-block-components-partial-payment_input"
-								label={__(
-									'Enter amount',
-									'woo-wallet'
-								)}
+								label={__( 'Enter amount', 'woo-wallet' )}
 								value={partialPaymentAmount}
 								onChange={(newPartialPaymentAmount) => {
 									setPartialPaymentAmount(newPartialPaymentAmount);
 								}}
-								focusOnMount={false}
-								validateOnMount={false}
-								showError={false}
+								focusOnMount={ true }
+								validateOnMount={ false }
+								showError={ true }
+								type="number"
+								validate={(value) => {
+									const num = parseFloat(value);
+									if (isNaN(num) || num <= 0) {
+										return __('Please enter a valid amount greater than 0', 'woo-wallet');
+									}
+									if (num > settings.balance) {
+										return __('Amount cannot exceed your wallet balance', 'woo-wallet');
+									}
+									const maxAmount = parseFloat(settings.max_amount);
+									if (!isNaN(maxAmount) && maxAmount > 0 && num > maxAmount) {
+										return __('Amount cannot exceed the order total payable from your wallet', 'woo-wallet');
+									}
+								}}
 							/>
 							<Button
 								className="wc-block-components-partial-payment_button"

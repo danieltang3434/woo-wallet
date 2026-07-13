@@ -47,7 +47,6 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 		 * Class constructor.
 		 */
 		public function __construct() {
-
 		}
 
 		/**
@@ -80,7 +79,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 			if ( 'on' !== woo_wallet()->settings_api->get_option( 'is_enable_cashback_reward_program', '_wallet_settings_credit' ) ) {
 				return 0;
 			}
-			if ( ! array_diff( $user->roles, $exclude_role ) ) {
+			if ( $user && ! empty( $user->roles ) && ! array_diff( $user->roles, $exclude_role ) ) {
 				return 0;
 			}
 			if ( ! $form_cart && ! $order_id ) {
@@ -104,10 +103,20 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 		/**
 		 * Calculate cashback form cart.
 		 *
+		 * When `max_cashback_scope` is `per_order` the global maximum cap is applied
+		 * once after all line amounts have been summed (post-loop cap). When it is
+		 * `per_item` (the pre-1.6.1 default for upgraded sites) the cap was already
+		 * applied per line inside `get_product_cashback_amount` /
+		 * `get_product_category_wise_cashback_amount`, so no second cap is needed.
+		 *
 		 * @return float
+		 *
+		 * @since 1.6.1 Added post-loop cap logic for per_order scope (R6).
 		 */
 		private static function calculate_cashback_form_cart() {
-			$cashback_amount = 0;
+			$cashback_amount   = 0;
+			$max_cashback_scope = woo_wallet()->settings_api->get_option( 'max_cashback_scope', '_wallet_settings_credit', 'per_order' );
+
 			if ( is_wallet_rechargeable_cart() ) {
 				return $cashback_amount;
 			}
@@ -118,7 +127,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 							$product_id       = $cart_item['variation_id'] ? $cart_item['variation_id'] : $cart_item['product_id'];
 							$product          = wc_get_product( $product_id );
 							$qty              = $cart_item['quantity'];
-							$cashback_amount += self::get_product_cashback_amount( $product, $qty, $cart_item['line_subtotal'] / $qty );
+							$cashback_amount += self::get_product_cashback_amount( $product, $qty, $cart_item['line_subtotal'] / $qty, $max_cashback_scope );
 						}
 					}
 					break;
@@ -128,7 +137,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 							$product_id       = $cart_item['variation_id'] ? $cart_item['variation_id'] : $cart_item['product_id'];
 							$product          = wc_get_product( $product_id );
 							$qty              = $cart_item['quantity'];
-							$cashback_amount += self::get_product_category_wise_cashback_amount( $product, $qty, $cart_item['line_subtotal'] / $qty );
+							$cashback_amount += self::get_product_category_wise_cashback_amount( $product, $qty, $cart_item['line_subtotal'] / $qty, $max_cashback_scope );
 						}
 					}
 					break;
@@ -148,18 +157,34 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 					}
 					break;
 			}
+
+			// Post-loop per_order cap: apply the global maximum once across the full cart sum.
+			// `per_item` scope already applied the cap inside each per-line helper.
+			if ( 'per_order' === $max_cashback_scope && 'cart' !== self::$cashback_rule && self::$max_cashbak_amount && $cashback_amount > self::$max_cashbak_amount ) {
+				$cashback_amount = self::$max_cashbak_amount;
+			}
+
 			return apply_filters( 'woo_wallet_form_cart_cashback_amount', $cashback_amount );
 		}
 
 		/**
 		 * Calculate cashback form order.
 		 *
+		 * When `max_cashback_scope` is `per_order` the global cap is applied once
+		 * after all line amounts have been summed (post-loop). For `per_item` scope
+		 * the cap was already applied per line inside the per-product/category
+		 * helpers, so no second cap is applied here.
+		 *
 		 * @param int $order_id order_id.
 		 * @return float
+		 *
+		 * @since 1.6.1 Added post-loop cap (R6) and max_cashback_scope awareness.
 		 */
 		private static function calculate_cashback_form_order( $order_id = 0 ) {
-			$cashback_amount = 0;
-			$order           = wc_get_order( $order_id );
+			$cashback_amount   = 0;
+			$order             = wc_get_order( $order_id );
+			$max_cashback_scope = woo_wallet()->settings_api->get_option( 'max_cashback_scope', '_wallet_settings_credit', 'per_order' );
+
 			if ( ! $order || is_wallet_rechargeable_order( $order ) ) {
 				return $cashback_amount;
 			}
@@ -170,7 +195,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 							$product_id       = $item->get_variation_id() ? $item->get_variation_id() : $item->get_product_id();
 							$product          = wc_get_product( $product_id );
 							$qty              = $item->get_quantity();
-							$cashback_amount += self::get_product_cashback_amount( $product, $qty, (float) $order->get_item_subtotal( $item, false, true ) );
+							$cashback_amount += self::get_product_cashback_amount( $product, $qty, (float) $order->get_item_subtotal( $item, false, true ), $max_cashback_scope );
 						}
 					}
 					break;
@@ -180,7 +205,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 							$product_id       = $item->get_variation_id() ? $item->get_variation_id() : $item->get_product_id();
 							$product          = wc_get_product( $product_id );
 							$qty              = $item->get_quantity();
-							$cashback_amount += self::get_product_category_wise_cashback_amount( $product, $qty, (float) $order->get_item_subtotal( $item, false, true ) );
+							$cashback_amount += self::get_product_category_wise_cashback_amount( $product, $qty, (float) $order->get_item_subtotal( $item, false, true ), $max_cashback_scope );
 						}
 					}
 					break;
@@ -200,6 +225,12 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 					}
 					break;
 			}
+
+			// Post-loop per_order cap (R6): apply the global maximum once across the full order sum.
+			if ( 'per_order' === $max_cashback_scope && 'cart' !== self::$cashback_rule && self::$max_cashbak_amount && $cashback_amount > self::$max_cashbak_amount ) {
+				$cashback_amount = self::$max_cashbak_amount;
+			}
+
 			$cashback_amount = apply_filters( 'woo_wallet_form_order_cashback_amount', $cashback_amount, $order_id );
 			WOO_Wallet_Helper::update_order_meta_data( $order, '_wallet_cashback', $cashback_amount );
 			return $cashback_amount;
@@ -208,17 +239,27 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 		/**
 		 * Get cashback from a specific product.
 		 *
-		 * @param WC_Product $product product.
-		 * @param int        $qty qty.
-		 * @param float      $product_price product_price.
+		 * When `$scope` is `per_item` the per-line maximum cap is applied here
+		 * (pre-1.6.1 behaviour, preserved for upgraded sites). When `$scope` is
+		 * `per_order` the cap is skipped here and applied once in the calling
+		 * loop after all lines are summed.
+		 *
+		 * @param WC_Product $product        product.
+		 * @param int        $qty            qty.
+		 * @param float      $product_price  product_price.
+		 * @param string     $scope          'per_item' | 'per_order'. Defaults to 'per_order'.
 		 * @return float
+		 *
+		 * @since 1.6.1 Added $scope param (R6). Existing callers without the param get 'per_order'.
 		 */
-		public static function get_product_cashback_amount( $product, $qty = 1, $product_price = 0 ) {
+		public static function get_product_cashback_amount( $product, $qty = 1, $product_price = 0, $scope = 'per_order' ) {
 			self::init_cashback_settings();
 			$cashback_amount = 0;
 			if ( ! $product ) {
 				return $cashback_amount;
 			}
+			$apply_per_line_cap = ( 'per_item' === $scope );
+
 			$product_wise_cashback_type   = get_post_meta( $product->get_id(), '_cashback_type', true );
 			$product_wise_cashback_amount = get_post_meta( $product->get_id(), '_cashback_amount', true ) ? floatval( get_post_meta( $product->get_id(), '_cashback_amount', true ) ) : 0;
 			if ( ! $product_price ) {
@@ -232,7 +273,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 				if ( $product_wise_cashback_type && $product_wise_cashback_amount ) {
 					if ( 'percent' === $product_wise_cashback_type ) {
 						$product_wise_percent_cashback_amount = $product_price * $qty * ( $product_wise_cashback_amount / 100 );
-						if ( self::$max_cashbak_amount && $product_wise_percent_cashback_amount > self::$max_cashbak_amount ) {
+						if ( $apply_per_line_cap && self::$max_cashbak_amount && $product_wise_percent_cashback_amount > self::$max_cashbak_amount ) {
 							$cashback_amount += self::$max_cashbak_amount;
 						} else {
 							$cashback_amount += $product_wise_percent_cashback_amount;
@@ -240,34 +281,40 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 					} else {
 						$cashback_amount += $product_wise_cashback_amount * $qty;
 					}
-				} else {
-					if ( 'percent' === self::$global_cashbak_type ) {
+				} elseif ( 'percent' === self::$global_cashbak_type ) {
 						$product_wise_percent_cashback_amount = $product_price * $qty * ( self::$global_cashbak_amount / 100 );
-						if ( self::$max_cashbak_amount && $product_wise_percent_cashback_amount > self::$max_cashbak_amount ) {
-							$cashback_amount += self::$max_cashbak_amount;
-						} else {
-							$cashback_amount += $product_wise_percent_cashback_amount;
-						}
+					if ( $apply_per_line_cap && self::$max_cashbak_amount && $product_wise_percent_cashback_amount > self::$max_cashbak_amount ) {
+						$cashback_amount += self::$max_cashbak_amount;
 					} else {
-						$cashback_amount += self::$global_cashbak_amount * $qty;
+						$cashback_amount += $product_wise_percent_cashback_amount;
 					}
+				} else {
+					$cashback_amount += self::$global_cashbak_amount * $qty;
 				}
 			}
 			return apply_filters( 'woo_wallet_product_wise_cashback_amount', $cashback_amount, $product, $qty, $product_price );
 		}
 
 		/**
-		 * Calculate cashback of a product
-		 * depending on product category.
+		 * Calculate cashback of a product depending on product category.
 		 *
-		 * @param WC_Product $product product.
-		 * @param int        $qty qty.
+		 * When `$scope` is `per_item` the per-line maximum cap is applied here
+		 * (pre-1.6.1 behaviour). When `$scope` is `per_order` the cap is skipped
+		 * here and applied once after the full loop in the calling method.
+		 *
+		 * @param WC_Product $product       product.
+		 * @param int        $qty           qty.
 		 * @param float      $product_price product_price.
+		 * @param string     $scope         'per_item' | 'per_order'. Defaults to 'per_order'.
 		 * @return float
+		 *
+		 * @since 1.6.1 Added $scope param (R6).
 		 */
-		public static function get_product_category_wise_cashback_amount( $product, $qty = 1, $product_price = 0 ) {
+		public static function get_product_category_wise_cashback_amount( $product, $qty = 1, $product_price = 0, $scope = 'per_order' ) {
 			self::init_cashback_settings();
-			$cashback_amount = 0;
+			$cashback_amount    = 0;
+			$apply_per_line_cap = ( 'per_item' === $scope );
+
 			if ( $product->get_parent_id( 'edit' ) ) {
 				$term_ids = wc_get_product( $product->get_parent_id( 'edit' ) )->get_category_ids( 'edit' );
 			} else {
@@ -289,7 +336,7 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 						if ( $category_wise_cashback_type && $category_wise_cashback_amount ) {
 							if ( 'percent' === $category_wise_cashback_type ) {
 								$category_wise_cashback_amount = $product_price * $qty * ( $category_wise_cashback_amount / 100 );
-								if ( self::$max_cashbak_amount && $category_wise_cashback_amount > self::$max_cashbak_amount ) {
+								if ( $apply_per_line_cap && self::$max_cashbak_amount && $category_wise_cashback_amount > self::$max_cashbak_amount ) {
 									$category_wise_cashback_amount = self::$max_cashbak_amount;
 								}
 							}
@@ -299,22 +346,19 @@ if ( ! class_exists( 'Woo_Wallet_Cashback' ) ) {
 				}
 				if ( ! empty( $category_wise_cashback_amounts ) ) {
 					$cashback_amount += ( 'on' === woo_wallet()->settings_api->get_option( 'allow_min_cashback', '_wallet_settings_credit', 'on' ) ) ? min( $category_wise_cashback_amounts ) : max( $category_wise_cashback_amounts );
-				} else {
-					if ( 'percent' === self::$global_cashbak_type ) {
+				} elseif ( 'percent' === self::$global_cashbak_type ) {
 						$category_wise_cashback_amount = $product_price * $qty * ( self::$global_cashbak_amount / 100 );
-						if ( self::$max_cashbak_amount && $category_wise_cashback_amount > self::$max_cashbak_amount ) {
-							$cashback_amount += self::$max_cashbak_amount;
-						} else {
-							$cashback_amount += $category_wise_cashback_amount;
-						}
+					if ( $apply_per_line_cap && self::$max_cashbak_amount && $category_wise_cashback_amount > self::$max_cashbak_amount ) {
+						$cashback_amount += self::$max_cashbak_amount;
 					} else {
-						$cashback_amount += self::$global_cashbak_amount;
+						$cashback_amount += $category_wise_cashback_amount;
 					}
+				} else {
+					$cashback_amount += self::$global_cashbak_amount;
 				}
 			}
 			return apply_filters( 'woo_wallet_product_category_wise_cashback_amount', $cashback_amount, $product, $qty, $product_price );
 		}
-
 	}
 
 }

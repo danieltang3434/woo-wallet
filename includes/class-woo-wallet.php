@@ -11,12 +11,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Main wallet calss
  */
-final class WooWallet {
+final class Woo_Wallet {
 
 	/**
 	 * The single instance of the class.
 	 *
-	 * @var WooWallet
+	 * @var Woo_Wallet
 	 * @since 1.0.0
 	 */
 	protected static $_instance = null;
@@ -63,15 +63,17 @@ final class WooWallet {
 	 * Class constructor
 	 */
 	public function __construct() {
-		if ( Woo_Wallet_Dependencies::is_woocommerce_active() ) {
-			$this->includes();
-			$this->init_hooks();
-			do_action( 'woo_wallet_loaded' );
-		} else {
-			require_once ABSPATH . '/wp-admin/includes/plugin.php';
-			deactivate_plugins( plugin_basename( WOO_WALLET_PLUGIN_FILE ) );
-			add_action( 'admin_notices', array( $this, 'admin_notices' ), 15 );
-		}
+		// Self-assign before doing anything else so a re-entrant
+		// `woo_wallet()` call (e.g. `Woo_Wallet_Frontend::instance()`
+		// auto-instantiating during `includes()` and dereferencing
+		// `woo_wallet()->settings_api` from its constructor) returns this
+		// same instance instead of triggering a second `new self()` that
+		// double-registers every hook in `init_hooks()`.
+		self::$_instance = $this;
+
+		$this->includes();
+		$this->init_hooks();
+		do_action( 'woo_wallet_loaded' );
 	}
 
 	/**
@@ -99,6 +101,7 @@ final class WooWallet {
 	public function includes() {
 		include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-helper.php';
 		include_once WOO_WALLET_ABSPATH . 'includes/helper/woo-wallet-util.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/helper/woo-wallet-transaction-types.php';
 		include_once WOO_WALLET_ABSPATH . 'includes/helper/woo-wallet-update-functions.php';
 		include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-install.php';
 
@@ -113,10 +116,15 @@ final class WooWallet {
 
 		include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-widgets.php';
 
+		// Loaded unconditionally and early: captures `user_register` before
+		// `woocommerce_init` so SSO / programmatic signups still get credited.
+		include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-signup-handler.php';
+		new Woo_Wallet_Signup_Handler();
+
 		if ( $this->is_request( 'admin' ) ) {
 			include_once WOO_WALLET_ABSPATH . 'includes/export/class-terawallet-csv-exporter.php';
 			include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-settings.php';
-			include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-extensions.php';
+			include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-go-pro-page.php';
 			include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-admin.php';
 		}
 		if ( $this->is_request( 'frontend' ) ) {
@@ -145,10 +153,11 @@ final class WooWallet {
 		add_filter( 'plugin_action_links_' . plugin_basename( WOO_WALLET_PLUGIN_FILE ), array( $this, 'plugin_action_links' ) );
 		add_action( 'init', array( $this, 'init' ), 5 );
 		add_action( 'widgets_init', array( $this, 'woo_wallet_widget_init' ) );
-		add_action( 'woocommerce_loaded', array( $this, 'woocommerce_loaded_callback' ) );
-		add_action( 'rest_api_init', array( $this, 'rest_api_init' ) );
+		add_action( 'woocommerce_init', array( $this, 'woocommerce_loaded_callback' ) );
 		// Registers WooCommerce Blocks integration.
 		add_action( 'woocommerce_blocks_loaded', array( __CLASS__, 'add_woocommerce_block_support' ) );
+		// Register Gutenberg blocks.
+		add_action( 'init', array( $this, 'register_wallet_balance_block' ) );
 		do_action( 'woo_wallet_init' );
 	}
 
@@ -160,6 +169,10 @@ final class WooWallet {
 		include_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-payment-method.php';
 		$this->add_marketplace_support();
 		$this->add_multicurrency_support();
+		// Currency providers are now registered (above), so a pending one-shot
+		// normalization of legacy non-base ledger rows can run. Cheap no-op when
+		// the marker is unset.
+		woo_wallet_maybe_normalize_legacy_currency_rows();
 		add_filter( 'woocommerce_email_classes', array( $this, 'woocommerce_email_classes' ), 999 );
 		add_filter( 'woocommerce_template_directory', array( $this, 'woocommerce_template_directory' ), 10, 2 );
 		add_filter( 'woocommerce_payment_gateways', array( $this, 'load_gateway' ) );
@@ -171,11 +184,19 @@ final class WooWallet {
 		add_action( 'woocommerce_checkout_order_processed', array( $this->wallet, 'woocommerce_order_processed' ), 99 );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this->wallet, 'woocommerce_order_processed' ), 99 );
 
+		// Optional: debit partial payment only once the order reaches a paid status
+		// (when the `partial_payment_debit_on` setting is `payment_complete`).
+		foreach ( apply_filters( 'wallet_debit_partial_payment_status', array( 'processing', 'completed' ) ) as $status ) {
+			add_action( 'woocommerce_order_status_' . $status, array( $this->wallet, 'maybe_debit_partial_payment_on_status' ) );
+		}
+
 		foreach ( apply_filters( 'wallet_cashback_order_status', $this->settings_api->get_option( 'process_cashback_status', '_wallet_settings_credit', array( 'processing', 'completed' ) ) ) as $status ) {
 			add_action( 'woocommerce_order_status_' . $status, array( $this->wallet, 'wallet_cashback' ), 12 );
 		}
 
 		add_action( 'woocommerce_order_status_cancelled', array( $this->wallet, 'process_cancelled_order' ) );
+		add_action( 'woocommerce_order_refunded', array( $this->wallet, 'process_refunded_order' ), 10, 2 );
+		add_action( 'woocommerce_order_refunded', array( $this->wallet, 'process_partial_payment_refund' ), 10, 2 );
 
 		add_filter( 'woocommerce_reports_get_order_report_query', array( $this, 'woocommerce_reports_get_order_report_query' ) );
 		add_filter( 'woocommerce_analytics_revenue_query_args', array( $this, 'remove_wallet_rechargable_order_from_analytics' ) );
@@ -187,19 +208,14 @@ final class WooWallet {
 
 		add_action( 'deleted_user', array( $this, 'delete_user_transaction_records' ) );
 
+		// Invalidate the Reports dashboard summary cache on any ledger write.
+		add_action( 'woo_wallet_transaction_recorded', array( $this, 'flush_reports_cache' ) );
+
 		add_action( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'filter_wallet_topup_orders' ), 10, 2 );
 
 		add_filter( 'woocommerce_get_query_vars', array( $this, 'add_woocommerce_query_vars' ) );
 
-		add_action( 'woocommerce_order_item_fee_after_calculate_taxes', array( $this, 'woocommerce_order_item_fee_after_calculate_taxes_callback' ), 10, 2 );
-
-		$is_active = get_option( 'woo_wallet_is_active', false );
-
-		if ( false === $is_active ) {
-			update_option( 'woo_wallet_is_active', true );
-			flush_rewrite_rules();
-			do_action( 'woo_wallet_activated' );
-		}
+		add_action( 'woocommerce_order_item_fee_after_calculate_taxes', array( $this, 'woocommerce_order_item_fee_after_calculate_taxes_callback' ), 10 );
 	}
 
 	/**
@@ -209,8 +225,7 @@ final class WooWallet {
 	 * @return type
 	 */
 	public function add_woocommerce_query_vars( $query_vars ) {
-		$query_vars['woo-wallet']              = get_option( 'woocommerce_woo_wallet_endpoint', 'my-wallet' );
-		$query_vars['woo-wallet-transactions'] = get_option( 'woocommerce_woo_wallet_transactions_endpoint', 'wallet-transactions' );
+		$query_vars['woo-wallet'] = get_option( 'woocommerce_woo_wallet_endpoint', 'my-wallet' );
 		return $query_vars;
 	}
 
@@ -230,6 +245,24 @@ final class WooWallet {
 	public function woo_wallet_widget_init() {
 		register_widget( 'Woo_Wallet_Topup' );
 	}
+
+	/**
+	 * Register the Wallet Balance Gutenberg block.
+	 *
+	 * Uses the block.json metadata in the build directory. WordPress auto-discovers
+	 * scripts, styles, and the render callback from the metadata file.
+	 *
+	 * @since 1.7.0
+	 */
+	public function register_wallet_balance_block() {
+		if ( ! function_exists( 'register_block_type' ) ) {
+			return;
+		}
+		$block_dir = WOO_WALLET_ABSPATH . 'build/blocks/mini-wallet';
+		if ( file_exists( $block_dir . '/block.json' ) ) {
+			register_block_type( $block_dir );
+		}
+	}
 	/**
 	 * Override WooCommerce email template directory.
 	 *
@@ -244,23 +277,21 @@ final class WooWallet {
 	}
 
 	/**
-	 * Load WooCommerce dependent class file.
+	 * Load WooCommerce-dependent class files.
+	 *
+	 * Hooked on `woocommerce_init`, which fires inside the core `init` action
+	 * only after WooCommerce is fully loaded — so WC_Settings_API and
+	 * WC_REST_Controller are guaranteed defined, and text-domain just-in-time
+	 * loading works (no `_doing_it_wrong` notice). The hook never fires when
+	 * WooCommerce is inactive, so no class-existence guard is required.
 	 */
 	public function woocommerce_loaded_callback() {
 		include_once WOO_WALLET_ABSPATH . 'includes/abstracts/abstract-woo-wallet-actions.php';
 		require_once WOO_WALLET_ABSPATH . 'includes/class-woo-wallet-actions.php';
-		include_once WOO_WALLET_ABSPATH . '/includes/class-woo-wallet-api.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/api/class-woo-wallet-api.php';
 		$this->rest_api = new WooWallet_API();
 	}
 
-	/**
-	 * WP REST API init.
-	 */
-	public function rest_api_init() {
-		include_once WOO_WALLET_ABSPATH . 'includes/api/class-woo-wallet-rest-controller.php';
-		$rest_controller = new WOO_Wallet_REST_Controller();
-		$rest_controller->register_routes();
-	}
 	/**
 	 * Add settings link to plugin list.
 	 *
@@ -371,14 +402,35 @@ final class WooWallet {
 	}
 	/**
 	 * Load multicurrency supported file.
+	 *
+	 * Boots the provider abstraction (interface + manager + first-class
+	 * providers + generic fallback), fires the public registration hook
+	 * for third-party adapters, then constructs the unified integration
+	 * that owns every wallet-side currency hook.
 	 */
 	public function add_multicurrency_support() {
-		if ( class_exists( 'WOOCS' ) ) {
-			include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/woocommerce-currency-switcher/class-wallet-multi-currency.php';
-		}
-		if ( class_exists( 'WCML_Multi_Currency' ) ) {
-			include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/woocommerce-multilingual/class-wallet-wpml-multi-currency.php';
-		}
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/interface-woo-wallet-currency-provider.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/class-woo-wallet-abstract-currency-provider.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/class-woo-wallet-currency-manager.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/providers/class-woo-wallet-currency-provider-generic.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/providers/class-woo-wallet-currency-provider-woocs.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/providers/class-woo-wallet-currency-provider-wcml.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/providers/class-woo-wallet-currency-provider-curcy.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/providers/class-woo-wallet-currency-provider-aelia.php';
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/providers/class-woo-wallet-currency-provider-yaycurrency.php';
+
+		$manager = Woo_Wallet_Currency_Manager::instance();
+		$manager->register_provider( new Woo_Wallet_Currency_Provider_WOOCS(), 10 );
+		$manager->register_provider( new Woo_Wallet_Currency_Provider_WCML(), 10 );
+		$manager->register_provider( new Woo_Wallet_Currency_Provider_CURCY(), 10 );
+		$manager->register_provider( new Woo_Wallet_Currency_Provider_Aelia(), 10 );
+		$manager->register_provider( new Woo_Wallet_Currency_Provider_YayCurrency(), 10 );
+		$manager->register_provider( new Woo_Wallet_Currency_Provider_Generic(), 100 );
+
+		do_action( 'woo_wallet_register_currency_providers', $manager );
+
+		include_once WOO_WALLET_ABSPATH . 'includes/multicurrency/class-woo-wallet-multicurrency-integration.php';
+		new Woo_Wallet_Multicurrency_Integration();
 	}
 	/**
 	 * Store fee key to order item meta.
@@ -392,15 +444,28 @@ final class WooWallet {
 		}
 	}
 	/**
-	 * Delete user transaction records.
+	 * Soft-delete a deleted user's wallet transaction records.
 	 *
-	 * @param Int $id Transaction ID.
+	 * Fires on the `deleted_user` hook. Marks the user's ledger rows as deleted
+	 * (recoverable) rather than physically removing them, preserving an audit trail.
+	 *
+	 * @param int $id Deleted user ID.
 	 */
 	public function delete_user_transaction_records( $id ) {
-		global $wpdb;
-		if ( apply_filters( 'woo_wallet_delete_transaction_records', true ) ) {
-			$wpdb->query( $wpdb->prepare( "DELETE t.*, tm.* FROM {$wpdb->base_prefix}woo_wallet_transactions t JOIN {$wpdb->base_prefix}woo_wallet_transaction_meta tm ON t.transaction_id = tm.transaction_id WHERE t.user_id = %d", $id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( apply_filters( 'woo_wallet_delete_transaction_records', true, $id ) ) {
+			delete_user_wallet_transactions( absint( $id ), false );
 		}
+	}
+
+	/**
+	 * Bump the Reports dashboard cache version so the next read recomputes.
+	 *
+	 * Hooked to `woo_wallet_transaction_recorded`; the version is part of the
+	 * summary transient key (see Woo_Wallet_Reports_Data::get_summary), so a
+	 * single incremented option invalidates every cached summary at once.
+	 */
+	public function flush_reports_cache() {
+		update_option( 'woo_wallet_reports_cache_version', (int) get_option( 'woo_wallet_reports_cache_version', 0 ) + 1, false );
 	}
 
 	/**
@@ -454,7 +519,12 @@ final class WooWallet {
 				'namespace' => 'apply-partial-payment',
 				'callback'  => function ( $data ) {
 					if ( ! is_null( wc()->session ) ) {
-						wc()->session->set( 'partial_payment_amount', $data['amount'] );
+						$amount = isset( $data['amount'] ) ? (float) $data['amount'] : 0;
+						$max    = woo_wallet_get_partial_payment_max_amount();
+						if ( $max > 0 && $amount > $max ) {
+							$amount = $max;
+						}
+						wc()->session->set( 'partial_payment_amount', $amount );
 					}
 				},
 			)
@@ -465,17 +535,14 @@ final class WooWallet {
 	 * Set wallet partial amount tax.
 	 *
 	 * @param WC_Order_Item_Fee $item item.
-	 * @param array             $calculate_tax_for calculate_tax_for.
 	 * @return void
 	 */
-	public function woocommerce_order_item_fee_after_calculate_taxes_callback( $item, $calculate_tax_for ) {
-		if ( ! isset( $calculate_tax_for['tax_class'] ) ) {
-			return;
+	public function woocommerce_order_item_fee_after_calculate_taxes_callback( $item ) {
+		// Keep the fee tax in `tax_inclusive_wallet` mode (the wallet pays the tax);
+		// only zero it in `payment` mode.
+		if ( is_a( $item, 'WC_Order_Item_Fee' ) && '_via_wallet_partial_payment' === $item->get_meta( '_legacy_fee_key' ) && 'tax_inclusive_wallet' !== woo_wallet_get_partial_payment_tax_mode() ) {
+			$item->set_taxes( false );
 		}
-		if ( '_via_wallet_partial_payment' !== $item->legacy_fee_key ) {
-			return;
-		}
-		$item->set_taxes( false );
 	}
 
 	/**
@@ -519,18 +586,5 @@ final class WooWallet {
 			$template = $default_path . $template_name;
 		}
 		return $template;
-	}
-
-	/**
-	 * Display admin notice
-	 */
-	public function admin_notices() {                   ?>
-		<div class="error">
-			<p>
-				<?php echo esc_html_e( 'TeraWallet plugin requires', 'woo-wallet' ); ?>
-				<a href="https://wordpress.org/plugins/woocommerce/">WooCommerce</a> <?php echo esc_html_e( 'plugins to be active!', 'woo-wallet' ); ?>
-			</p>
-		</div>
-		<?php
 	}
 }

@@ -93,6 +93,7 @@ class TeraWallet_CSV_Exporter {
 				'user_id'        => __( 'User ID', 'woo-wallet' ),
 				'email'          => __( 'Email', 'woo-wallet' ),
 				'type'           => __( 'Type', 'woo-wallet' ),
+				'category'       => __( 'Category', 'woo-wallet' ),
 				'currency'       => __( 'Currency', 'woo-wallet' ),
 				'amount'         => __( 'Amount', 'woo-wallet' ),
 				'details'        => __( 'Details', 'woo-wallet' ),
@@ -207,8 +208,38 @@ class TeraWallet_CSV_Exporter {
 	 * @return string
 	 */
 	protected function get_file_path() {
+		return trailingslashit( self::get_export_dir() ) . $this->get_filename();
+	}
+
+	/**
+	 * Get (and lazily create + harden) the export directory.
+	 *
+	 * Exports contain private financial data, so they must not live in the uploads
+	 * root where they are publicly readable. We store them in a dedicated subfolder
+	 * protected with an .htaccess deny + empty index.html (mirrors WooCommerce's own
+	 * woocommerce_uploads pattern).
+	 *
+	 * @return string Absolute path to the export directory (no trailing slash).
+	 */
+	protected static function get_export_dir() {
 		$upload_dir = wp_upload_dir();
-		return trailingslashit( $upload_dir['basedir'] ) . $this->get_filename();
+		$export_dir = trailingslashit( $upload_dir['basedir'] ) . 'woo-wallet-exports';
+
+		if ( ! file_exists( $export_dir ) ) {
+			wp_mkdir_p( $export_dir );
+		}
+
+		$htaccess = trailingslashit( $export_dir ) . '.htaccess';
+		if ( ! file_exists( $htaccess ) ) {
+			@file_put_contents( $htaccess, "deny from all\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_put_contents, Generic.PHP.NoSilencedErrors.Discouraged
+		}
+
+		$index = trailingslashit( $export_dir ) . 'index.html';
+		if ( ! file_exists( $index ) ) {
+			@file_put_contents( $index, '' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_put_contents, Generic.PHP.NoSilencedErrors.Discouraged
+		}
+
+		return $export_dir;
 	}
 
 	/**
@@ -271,17 +302,26 @@ class TeraWallet_CSV_Exporter {
 	public function get_tota_record_count() {
 		global $wpdb;
 		if ( 'transactions' === $this->get_export_type() ) {
-			$where = '1 = 1';
+			$where  = '1 = 1';
+			$params = array();
 			if ( ! empty( $this->selected_users ) ) {
-				$user_ids = implode( ', ', $this->selected_users );
-				$where   .= " AND transactions.user_id IN ({$user_ids})";
+				$placeholders = implode( ', ', array_fill( 0, count( $this->selected_users ), '%d' ) );
+				$where       .= " AND transactions.user_id IN ({$placeholders})"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				foreach ( $this->selected_users as $uid ) {
+					$params[] = absint( $uid );
+				}
 			}
 			if ( ! empty( $this->start_date ) || ! empty( $this->end_date ) ) {
-				$after  = empty( $this->start_date ) ? '0000-00-00' : $this->start_date;
-				$before = empty( $this->end_date ) ? current_time( 'mysql', 1 ) : $this->end_date;
-				$where .= " AND ( transactions.date BETWEEN STR_TO_DATE( '" . $after . "', '%Y-%m-%d %H:%i:%s' ) AND STR_TO_DATE( '" . $before . "', '%Y-%m-%d %H:%i:%s' ))";
+				$after    = empty( $this->start_date ) ? '0000-00-00' : $this->start_date;
+				$before   = empty( $this->end_date ) ? current_time( 'mysql', 1 ) : $this->end_date;
+				$where   .= " AND ( transactions.date BETWEEN STR_TO_DATE( %s, '%%Y-%%m-%%d %%H:%%i:%%s' ) AND STR_TO_DATE( %s, '%%Y-%%m-%%d %%H:%%i:%%s' ))";
+				$params[] = $after;
+				$params[] = $before;
 			}
-			$sql = "SELECT COUNT(*) FROM {$wpdb->base_prefix}woo_wallet_transactions AS transactions WHERE {$where};";
+			$sql = "SELECT COUNT(*) FROM {$wpdb->base_prefix}woo_wallet_transactions AS transactions WHERE {$where}";
+			if ( ! empty( $params ) ) {
+				$sql = $wpdb->prepare( $sql, ...$params ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			}
 			return $wpdb->get_var( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
 		} else {
 			if ( ! empty( $this->selected_users ) ) {
@@ -299,18 +339,30 @@ class TeraWallet_CSV_Exporter {
 	public function get_records() {
 		global $wpdb;
 		if ( 'transactions' === $this->get_export_type() ) {
-			$where = '1 = 1';
+			$where  = '1 = 1';
+			$params = array();
 			if ( ! empty( $this->selected_users ) ) {
-				$user_ids = implode( ', ', $this->selected_users );
-				$where   .= " AND transactions.user_id IN ({$user_ids})";
+				$placeholders = implode( ', ', array_fill( 0, count( $this->selected_users ), '%d' ) );
+				$where       .= " AND transactions.user_id IN ({$placeholders})"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				foreach ( $this->selected_users as $uid ) {
+					$params[] = absint( $uid );
+				}
 			}
 			if ( ! empty( $this->start_date ) || ! empty( $this->end_date ) ) {
-				$after  = empty( $this->start_date ) ? '0000-00-00' : $this->start_date;
-				$before = empty( $this->end_date ) ? current_time( 'mysql', 1 ) : $this->end_date;
-				$where .= " AND ( transactions.date BETWEEN STR_TO_DATE( '" . $after . "', '%Y-%m-%d %H:%i:%s' ) AND STR_TO_DATE( '" . $before . "', '%Y-%m-%d %H:%i:%s' ))";
+				$after    = empty( $this->start_date ) ? '0000-00-00' : $this->start_date;
+				$before   = empty( $this->end_date ) ? current_time( 'mysql', 1 ) : $this->end_date;
+				$where   .= " AND ( transactions.date BETWEEN STR_TO_DATE( %s, '%%Y-%%m-%%d %%H:%%i:%%s' ) AND STR_TO_DATE( %s, '%%Y-%%m-%%d %%H:%%i:%%s' ))";
+				$params[] = $after;
+				$params[] = $before;
 			}
-			$offset = $this->per_page * ( $this->get_step() - 1 );
-			$sql    = "SELECT * FROM {$wpdb->base_prefix}woo_wallet_transactions AS transactions WHERE {$where} ORDER BY transactions.transaction_id DESC LIMIT {$offset}, {$this->per_page};";
+			$offset   = absint( $this->per_page * ( $this->get_step() - 1 ) );
+			$per_page = absint( $this->per_page );
+			$params[] = $offset;
+			$params[] = $per_page;
+			$sql      = $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+				"SELECT * FROM {$wpdb->base_prefix}woo_wallet_transactions AS transactions WHERE {$where} ORDER BY transactions.transaction_id DESC LIMIT %d, %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				...$params
+			);
 			return $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
 		} else {
 			$args = array(
@@ -411,7 +463,7 @@ class TeraWallet_CSV_Exporter {
 
 		if ( $use_mb ) {
 			$encoding = mb_detect_encoding( $data, 'UTF-8, ISO-8859-1', true );
-			$data     = 'UTF-8' === $encoding ? $data : utf8_encode( $data );
+			$data     = 'UTF-8' === $encoding ? $data : mb_convert_encoding( $data, 'UTF-8', 'ISO-8859-1' );
 		}
 
 		return $this->escape_data( $data );

@@ -40,10 +40,8 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		public function __construct() {
 			add_filter( 'wp_nav_menu_items', array( $this, 'add_wallet_nav_menu' ), 100, 2 );
 			add_filter( 'woocommerce_endpoint_woo-wallet_title', array( $this, 'woocommerce_endpoint_title' ), 10, 2 );
-			add_filter( 'woocommerce_endpoint_woo-wallet-transactions_title', array( $this, 'woocommerce_endpoint_title' ), 10, 2 );
 			add_filter( 'woocommerce_account_menu_items', array( $this, 'woo_wallet_menu_items' ), 10, 1 );
 			add_action( 'woocommerce_account_woo-wallet_endpoint', array( $this, 'woo_wallet_endpoint_content' ) );
-			add_action( 'woocommerce_account_woo-wallet-transactions_endpoint', array( $this, 'woo_wallet_transactions_endpoint_content' ) );
 
 			add_filter( 'woocommerce_is_purchasable', array( $this, 'make_woo_wallet_recharge_product_purchasable' ), 10, 2 );
 			add_action( 'wp_loaded', array( $this, 'woo_wallet_frontend_loaded' ), 20 );
@@ -78,12 +76,16 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 			add_filter( 'woocommerce_cart_totals_get_fees_from_cart_taxes', array( $this, 'woocommerce_cart_totals_get_fees_from_cart_taxes' ), 999, 2 );
 			add_action( 'woocommerce_thankyou', array( $this, 'restore_woocommerce_cart_items' ) );
 			add_filter( 'woo_wallet_is_enable_transfer', array( $this, 'woo_wallet_is_enable_transfer' ) );
-
-			add_filter( 'wp_nav_menu_objects', array( $this, 'wp_nav_menu_objects' ), 10 );
+			add_filter( 'woo_wallet_is_enable_add', array( $this, 'woo_wallet_is_enable_top_up' ) );
 
 			add_action( 'woocommerce_order_details_after_order_table', array( $this, 'remove_woocommerce_order_again_button_for_wallet_rechargeable_order' ), 5 );
 
 			add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'woocommerce_cart_loaded_from_session' ) );
+
+			add_action( 'woo_wallet_dashboard_content', array( $this, 'woo_wallet_dashboard_content' ) );
+			add_action( 'woo_wallet_add_content', array( $this, 'woo_wallet_add_content' ) );
+			add_action( 'woo_wallet_transfer_content', array( $this, 'woo_wallet_transfer_content' ) );
+			add_action( 'woo_wallet_transactions_content', array( $this, 'woo_wallet_transactions_content' ) );
 		}
 		/**
 		 * Remove wallet rechargeable product from the cart
@@ -113,20 +115,6 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 				remove_action( 'woocommerce_order_details_after_order_table', 'woocommerce_order_again_button' );
 			}
 		}
-		/**
-		 * Show mini wallet on nav menu.
-		 *
-		 * @param object $items items.
-		 * @return object
-		 */
-		public function wp_nav_menu_objects( $items ) {
-			foreach ( $items as &$item ) {
-				if ( 'my-wallet' === $item->post_name && get_post_meta( $item->ID, '_show_wallet_icon_amount', true ) ) {
-					$item->title = apply_filters( 'wp_wallet_nav_menu_title', '<span dir="rtl" class="woo-wallet-icon-wallet"></span>&nbsp;' . woo_wallet()->wallet->get_wallet_balance( get_current_user_id() ), $item );
-				}
-			}
-			return $items;
-		}
 
 		/**
 		 * Add a new item to a menu
@@ -137,11 +125,11 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 */
 		public function add_wallet_nav_menu( $menu, $args ) {
 			// Check if add a new item to a menu assigned to Primary Navigation Menu location.
-			if ( apply_filters( 'woo_wallet_hide_nav_menu', false, $menu, $args ) || in_array( $args->theme_location, apply_filters( 'woo_wallet_exclude_nav_menu_location', array(), $menu, $args ) ) ) {
+			if ( apply_filters( 'woo_wallet_hide_nav_menu', false, $menu, $args ) || in_array( $args->theme_location, apply_filters( 'woo_wallet_exclude_nav_menu_location', array(), $menu, $args ), true ) ) {
 				return $menu;
 			}
 
-			if ( 'off' === woo_wallet()->settings_api->get_option( $args->theme_location, '_wallet_settings_general', 'off' ) || ! is_user_logged_in() ) {
+			if ( ! in_array( $args->theme_location, woo_wallet()->settings_api->get_option( 'mini_wallet_display_location', '_wallet_settings_general', array() ), true ) || ! is_user_logged_in() ) {
 				return $menu;
 			}
 
@@ -158,16 +146,8 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 * @param string $endpoint endpoint.
 		 */
 		public function woocommerce_endpoint_title( $title, $endpoint ) {
-			switch ( $endpoint ) {
-				case 'woo-wallet':
-					$title = apply_filters( 'woo_wallet_account_menu_title', __( 'My Wallet', 'woo-wallet' ) );
-					break;
-				case 'woo-wallet-transactions':
-					$title = apply_filters( 'woo_wallet_account_transaction_menu_title', __( 'Wallet Transactions', 'woo-wallet' ) );
-					break;
-				default:
-					$title = '';
-					break;
+			if ( 'woo-wallet' === $endpoint ) {
+				return apply_filters( 'woo_wallet_account_menu_title', __( 'My Wallet', 'woo-wallet' ) );
 			}
 			return $title;
 		}
@@ -176,33 +156,17 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 * Register and enqueue frontend styles and scripts
 		 */
 		public function woo_wallet_styles() {
-			$wp_scripts = wp_scripts();
-			$suffix     = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
-			wp_register_style( 'woo-wallet-payment-jquery-ui', woo_wallet()->plugin_url() . '/assets/jquery/css/jquery-ui.css', false, WOO_WALLET_PLUGIN_VERSION, false );
-			wp_register_style( 'jquery-datatables-style', woo_wallet()->plugin_url() . '/assets/jquery/css/jquery.dataTables.min.css', false, WOO_WALLET_PLUGIN_VERSION, false );
-			wp_register_style( 'jquery-datatables-responsive-style', woo_wallet()->plugin_url() . '/assets/jquery/css/responsive.dataTables.min.css', false, WOO_WALLET_PLUGIN_VERSION, false );
-			wp_register_style( 'woo-wallet-style', woo_wallet()->plugin_url() . '/assets/css/frontend.css', array(), WOO_WALLET_PLUGIN_VERSION );
+			wp_register_style( 'woo-wallet-style', woo_wallet()->plugin_url() . '/build/frontend/main.css', array(), WOO_WALLET_PLUGIN_VERSION );
 			// Add RTL support.
 			wp_style_add_data( 'woo-wallet-style', 'rtl', 'replace' );
-			wp_register_script( 'jquery-datatables-script', woo_wallet()->plugin_url() . '/assets/jquery/js/jquery.dataTables.min.js', array( 'jquery' ), WOO_WALLET_PLUGIN_VERSION, true );
-			wp_register_script( 'jquery-datatables-responsive-script', woo_wallet()->plugin_url() . '/assets/jquery/js/dataTables.responsive.min.js', array( 'jquery' ), WOO_WALLET_PLUGIN_VERSION, true );
-			wp_register_script( 'wc-endpoint-wallet', woo_wallet()->plugin_url() . '/assets/js/frontend/wc-endpoint-wallet' . $suffix . '.js', array( 'jquery', 'jquery-datatables-script' ), WOO_WALLET_PLUGIN_VERSION, true );
-			$data_table_columns    = apply_filters(
+			$frontend_asset = include WOO_WALLET_ABSPATH . 'build/frontend/main.asset.php';
+			wp_register_script( 'wc-endpoint-wallet', woo_wallet()->plugin_url() . '/build/frontend/main.js', array_merge( $frontend_asset['dependencies'], array( 'jquery' ) ), $frontend_asset['version'], true );
+			$data_table_columns = apply_filters(
 				'woo_wallet_transactons_datatable_columns',
 				array(
 					array(
-						'data'      => 'id',
-						'title'     => __( 'ID', 'woo-wallet' ),
-						'orderable' => false,
-					),
-					array(
-						'data'      => 'type',
-						'title'     => __( 'Type', 'woo-wallet' ),
-						'orderable' => false,
-					),
-					array(
-						'data'      => 'amount',
-						'title'     => __( 'Amount', 'woo-wallet' ),
+						'data'      => 'date',
+						'title'     => __( 'Date', 'woo-wallet' ),
 						'orderable' => false,
 					),
 					array(
@@ -211,17 +175,31 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 						'orderable' => false,
 					),
 					array(
-						'data'      => 'date',
-						'title'     => __( 'Date', 'woo-wallet' ),
+						'data'      => 'amount',
+						'title'     => __( 'Amount', 'woo-wallet' ),
 						'orderable' => false,
 					),
 				)
+			);
+
+			$replacements          = array(
+				'd' => 'DD',
+				'j' => 'D',
+				'm' => 'MM',
+				'n' => 'M',
+				'Y' => 'YYYY',
+				'y' => 'YY',
+				'F' => 'MMMM',
+				'M' => 'MMM',
+				'l' => 'dddd',
+				'D' => 'ddd',
 			);
 			$wallet_localize_param = array(
 				'ajax_url'                => admin_url( 'admin-ajax.php' ),
 				'transaction_table_nonce' => wp_create_nonce( 'woo-wallet-transactions' ),
 				'search_user_nonce'       => wp_create_nonce( 'search-user' ),
 				'search_by_user_email'    => apply_filters( 'woo_wallet_user_search_exact_match', true ),
+				'js_date_format'          => strtr( wc_date_format(), $replacements ),
 				'i18n'                    => array(
 					'emptyTable'           => __( 'No transactions available', 'woo-wallet' ),
 					/* translators: menu length */
@@ -242,24 +220,53 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 					'zeroRecords'          => __( 'No matching records found', 'woo-wallet' ),
 					'inputTooShort'        => __( 'Please enter 3 or more characters', 'woo-wallet' ),
 					'searching'            => __( 'Searching…', 'woo-wallet' ),
-					'processing'           => __( 'Processing...', 'woo-wallet' ),
-					'search'               => __( 'Search by date:', 'woo-wallet' ),
+					'processing'           => '',
+					'search'               => '',
 					'placeholder'          => __( 'yyyy-mm-dd', 'woo-wallet' ),
+					'cancel'               => __( 'Cancel', 'woo-wallet' ),
+					'apply'                => __( 'Apply', 'woo-wallet' ),
+					'customRangeLabel'     => __( 'Custom', 'woo-wallet' ),
+					'weekLabel'            => __( 'W', 'woo-wallet' ),
+					'daysOfWeek'           => array(
+						__( 'Sun', 'woo-wallet' ),
+						__( 'Mon', 'woo-wallet' ),
+						__( 'Tue', 'woo-wallet' ),
+						__( 'Wed', 'woo-wallet' ),
+						__( 'Thu', 'woo-wallet' ),
+						__( 'Fri', 'woo-wallet' ),
+						__( 'Sat', 'woo-wallet' ),
+					),
+					'monthNames'           => array(
+						__( 'January' ),
+						__( 'February' ),
+						__( 'March' ),
+						__( 'April' ),
+						__( 'May', ),
+						__( 'June' ),
+						__( 'July' ),
+						__( 'August' ),
+						__( 'September' ),
+						__( 'October' ),
+						__( 'November' ),
+						__( 'December' ),
+					),
 				),
 				'columns'                 => $data_table_columns,
+				'datepicker_ranges'       => array(
+					'today'        => __( 'Today', 'woo-wallet' ),
+					'yesterday'    => __( 'Yesterday', 'woo-wallet' ),
+					'last_7_days'  => __( 'Last 7 days', 'woo-wallet' ),
+					'last_30_days' => __( 'Last 30 days', 'woo-wallet' ),
+					'this_month'   => __( 'This month', 'woo-wallet' ),
+					'last_month'   => __( 'Last month', 'woo-wallet' ),
+				),
 			);
 			wp_localize_script( 'wc-endpoint-wallet', 'wallet_param', $wallet_localize_param );
-			wp_enqueue_style( 'woo-wallet-style' );
 			if ( is_account_page() ) {
-				wp_enqueue_style( 'woo-wallet-payment-jquery-ui' );
 				wp_enqueue_style( 'dashicons' );
 				wp_enqueue_style( 'select2' );
-				wp_enqueue_style( 'jquery-datatables-style' );
-				wp_enqueue_style( 'jquery-datatables-responsive-style' );
-				wp_enqueue_script( 'jquery-ui-datepicker' );
+				wp_enqueue_style( 'woo-wallet-style' );
 				wp_enqueue_script( 'selectWoo' );
-				wp_enqueue_script( 'jquery-datatables-script' );
-				wp_enqueue_script( 'jquery-datatables-responsive-script' );
 				wp_enqueue_script( 'wc-endpoint-wallet' );
 			}
 			$add_to_cart_variation = "jQuery(function ($) { $(document).on('show_variation', function (event, variation, purchasable) { if(variation.cashback_amount) { $('.on-woo-wallet-cashback').show(); $('.on-woo-wallet-cashback').html(variation.cashback_html); } else { $('.on-woo-wallet-cashback').hide(); } }) });";
@@ -285,7 +292,7 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		}
 
 		/**
-		 * WooCommerce endpoint contents for wallet
+		 * WooCommerce endpoint contents for wallet.
 		 */
 		public function woo_wallet_endpoint_content() {
 			if ( is_wallet_account_locked() ) {
@@ -294,16 +301,32 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 				woo_wallet()->get_template( 'wc-endpoint-wallet.php' );
 			}
 		}
+		/**
+		 * Wallet dashboard main content.
+		 */
+		public function woo_wallet_dashboard_content() {
+			woo_wallet()->get_template( 'dashboard.php' );
+		}
 
 		/**
-		 * WooCommerce endpoint contents for transaction details
+		 * Wallet dashboard top-up endpoint contents.
 		 */
-		public function woo_wallet_transactions_endpoint_content() {
-			if ( is_wallet_account_locked() ) {
-				woo_wallet()->get_template( 'no-access.php' );
-			} else {
-				woo_wallet()->get_template( 'wc-endpoint-wallet-transactions.php' );
-			}
+		public function woo_wallet_add_content() {
+			woo_wallet()->get_template( 'topup.php' );
+		}
+
+		/**
+		 * Wallet dashboard transfer endpoint contents.
+		 */
+		public function woo_wallet_transfer_content() {
+			woo_wallet()->get_template( 'transfer.php' );
+		}
+
+		/**
+		 * Wallet dashboard transactions endpoint contents.
+		 */
+		public function woo_wallet_transactions_content() {
+			woo_wallet()->get_template( 'transactions.php' );
 		}
 
 		/**
@@ -316,14 +339,13 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 			if ( isset( $_POST['woo_wallet_balance_to_add'] ) && ! empty( $_POST['woo_wallet_balance_to_add'] ) ) { // phpcs:disable WordPress.Security.NonceVerification.Missing
 				$is_valid = $this->is_valid_wallet_recharge_amount( wp_unslash( $_POST['woo_wallet_balance_to_add'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 				if ( $is_valid['is_valid'] ) {
-					add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_woo_wallet_product_price_to_cart_item_data' ), 10, 2 );
 					$product = get_wallet_rechargeable_product();
 					if ( $product ) {
 						if ( ! is_wallet_rechargeable_cart() ) {
 							woo_wallet_persistent_cart_update();
 						}
 						wc()->cart->empty_cart();
-						wc()->cart->add_to_cart( $product->get_id() );
+						wc()->cart->add_to_cart( $product->get_id(), 1, 0, array(), array( 'recharge_amount' => apply_filters( 'woo_wallet_rechargeable_amount', round( sanitize_text_field( wp_unslash( $_POST['woo_wallet_balance_to_add'] ) ), 2 ) ) ) );
 						$redirect_url = apply_filters( 'woo_wallet_redirect_to_checkout_after_added_amount', true ) ? wc_get_checkout_url() : wc_get_cart_url();
 						wp_safe_redirect( $redirect_url );
 						exit();
@@ -392,98 +414,94 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		/**
 		 * Do transfer wallet amount.
 		 *
+		 * Form-side wrapper: validates nonce + form-render idempotency claim, parses
+		 * `$_POST`, then delegates to `WooWallet_Transfer_Service::execute()` which
+		 * runs the same logic as the REST `POST /me/transfer` handler.
+		 *
 		 * @return array
 		 */
 		public function do_wallet_transfer() {
-			$response = array(
-				'is_valid' => true,
-				'message'  => '',
-			);
-			if ( isset( $_POST['woo_wallet_transfer'] ) && wp_verify_nonce( wp_unslash( $_POST['woo_wallet_transfer'] ), 'woo_wallet_transfer' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-				$whom             = isset( $_POST['woo_wallet_transfer_user_id'] ) ? absint( sanitize_text_field( wp_unslash( $_POST['woo_wallet_transfer_user_id'] ) ) ) : 0;
-				$amount           = isset( $_POST['woo_wallet_transfer_amount'] ) ? floatval( sanitize_text_field( wp_unslash( $_POST['woo_wallet_transfer_amount'] ) ) ) : 0;
-				$whom             = apply_filters( 'woo_wallet_transfer_user_id', $whom );
-				$whom             = get_userdata( $whom );
-				$current_user_obj = get_userdata( get_current_user_id() );
-				if ( get_current_user_id() === $whom->ID ) {
-					return array(
-						'is_valid' => false,
-						'message'  => sprintf( __( 'Invalid user', 'woo-wallet' ) ),
-					);
-				}
-				/* translators: user_email */
-				$credit_note = isset( $_POST['woo_wallet_transfer_note'] ) && ! empty( $_POST['woo_wallet_transfer_note'] ) ? sanitize_text_field( wp_unslash( $_POST['woo_wallet_transfer_note'] ) ) : sprintf( __( 'Wallet funds received from %s', 'woo-wallet' ), $current_user_obj->user_email );
-				/* translators: user_email */
-				$debit_note  = sprintf( __( 'Wallet funds transfer to %s', 'woo-wallet' ), $whom->user_email );
-				$credit_note = apply_filters( 'woo_wallet_transfer_credit_transaction_note', $credit_note, $whom, $amount );
-				$debit_note  = apply_filters( 'woo_wallet_transfer_debit_transaction_note', $debit_note, $whom, $amount );
-
-				$transfer_charge_type   = woo_wallet()->settings_api->get_option( 'transfer_charge_type', '_wallet_settings_general', 'percent' );
-				$transfer_charge_amount = woo_wallet()->settings_api->get_option( 'transfer_charge_amount', '_wallet_settings_general', 0 );
-				$transfer_charge        = 0;
-				if ( 'percent' === $transfer_charge_type ) {
-					$transfer_charge = ( $amount * $transfer_charge_amount ) / 100;
-				} else {
-					$transfer_charge = $transfer_charge_amount;
-				}
-				$transfer_charge = apply_filters( 'woo_wallet_transfer_charge_amount', $transfer_charge, $whom );
-				$credit_amount   = apply_filters( 'woo_wallet_transfer_credit_amount', $amount, $whom );
-				$debit_amount    = apply_filters( 'woo_wallet_transfer_debit_amount', $amount + $transfer_charge, $whom );
-				if ( woo_wallet()->settings_api->get_option( 'min_transfer_amount', '_wallet_settings_general', 0 ) ) {
-					if ( woo_wallet()->settings_api->get_option( 'min_transfer_amount', '_wallet_settings_general', 0 ) > $amount ) {
-						return array(
-							'is_valid' => false,
-							/* translators: Max transfer amount */
-							'message'  => sprintf( __( 'Minimum transfer amount is %s', 'woo-wallet' ), wc_price( woo_wallet()->settings_api->get_option( 'min_transfer_amount', '_wallet_settings_general', 0 ), woo_wallet_wc_price_args() ) ),
-						);
-					}
-				}
-				if ( ! $whom ) {
-					return array(
-						'is_valid' => false,
-						'message'  => __( 'Invalid user', 'woo-wallet' ),
-					);
-				}
-				if ( $debit_amount > woo_wallet()->wallet->get_wallet_balance( get_current_user_id(), 'edit' ) ) {
-					return array(
-						'is_valid' => false,
-						'message'  => __( 'Entered amount is greater than current wallet amount.', 'woo-wallet' ),
-					);
-				}
-				$credit_transaction_id = woo_wallet()->wallet->credit( $whom->ID, $credit_amount, $credit_note );
-				if ( $credit_transaction_id ) {
-					do_action( 'woo_wallet_transfer_amount_credited', $credit_transaction_id, $whom->ID, get_current_user_id() );
-					$debit_transaction_id = woo_wallet()->wallet->debit( get_current_user_id(), $debit_amount, $debit_note );
-					do_action( 'woo_wallet_transfer_amount_debited', $debit_transaction_id, get_current_user_id(), $whom->ID );
-					update_wallet_transaction_meta( $debit_transaction_id, '_wallet_transfer_charge', $transfer_charge, get_current_user_id() );
-					$response = array(
-						'is_valid' => true,
-						'message'  => __( 'Amount transferred successfully!', 'woo-wallet' ),
-					);
-				}
-			} else {
-				$response = array(
+			if ( ! isset( $_POST['woo_wallet_transfer'] ) || ! wp_verify_nonce( wp_unslash( $_POST['woo_wallet_transfer'] ), 'woo_wallet_transfer' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				return array(
 					'is_valid' => false,
 					'message'  => __( 'Cheatin&#8217; huh?', 'woo-wallet' ),
 				);
 			}
-			return $response;
+
+			$current_user_id = get_current_user_id();
+			if ( ! $current_user_id ) {
+				return array(
+					'is_valid' => false,
+					'message'  => __( 'You must be logged in to transfer funds.', 'woo-wallet' ),
+				);
+			}
+
+			// Single-use idempotency claim — defeats parallel-burst replay of the same form.
+			// Nonces alone are not consumed on use, so an attacker can fire N concurrent POSTs
+			// with one captured nonce. The transient is created per-form-render and must be
+			// claimed atomically here; a second concurrent submission with the same key fails.
+			// (REST `POST /me/transfer` uses a different mechanism — `Idempotency-Key` header
+			// stored by `WooWallet_Idempotency` — so the two surfaces don't collide.)
+			$idem_key = isset( $_POST['woo_wallet_idempotency_key'] ) ? sanitize_key( wp_unslash( $_POST['woo_wallet_idempotency_key'] ) ) : '';
+			if ( $idem_key && ! $this->claim_transfer_idempotency_key( $current_user_id, $idem_key ) ) {
+				return array(
+					'is_valid' => false,
+					'message'  => __( 'This transfer was already submitted. Please refresh the form and try again.', 'woo-wallet' ),
+				);
+			}
+
+			$whom_id = isset( $_POST['woo_wallet_transfer_user_id'] ) ? absint( sanitize_text_field( wp_unslash( $_POST['woo_wallet_transfer_user_id'] ) ) ) : 0;
+			$amount  = isset( $_POST['woo_wallet_transfer_amount'] ) ? floatval( sanitize_text_field( wp_unslash( $_POST['woo_wallet_transfer_amount'] ) ) ) : 0;
+			$note    = isset( $_POST['woo_wallet_transfer_note'] ) && ! empty( $_POST['woo_wallet_transfer_note'] ) ? sanitize_text_field( wp_unslash( $_POST['woo_wallet_transfer_note'] ) ) : '';
+
+			if ( ! class_exists( 'WooWallet_Transfer_Service' ) ) {
+				include_once WOO_WALLET_ABSPATH . 'includes/services/class-woo-wallet-transfer-service.php';
+			}
+			$result = WooWallet_Transfer_Service::execute( $current_user_id, $whom_id, $amount, $note );
+
+			// Form callers only inspect is_valid + message; service returns extra fields safely.
+			return array(
+				'is_valid' => (bool) $result['is_valid'],
+				'message'  => isset( $result['message'] ) ? $result['message'] : '',
+			);
 		}
 
 		/**
-		 * WooCommerce add cart item data
+		 * Atomically claim a per-form idempotency token. Returns true the first time the
+		 * token is seen, false on every subsequent (concurrent or replayed) submission.
 		 *
-		 * @param array $cart_item_data cart_item_data.
-		 * @param int   $product_id product_id.
-		 * @return array
+		 * Implementation: the token is stored in a transient at form-render time. We
+		 * acquire it via delete_transient(), which compiles to a single DELETE on the
+		 * options table — atomic at the DB level. Two concurrent requests cannot both
+		 * succeed in deleting the same row.
+		 *
+		 * @param int    $user_id Owning user.
+		 * @param string $key     Token from the form.
+		 * @return bool True if claim succeeded (token was valid and is now consumed).
 		 */
-		public function add_woo_wallet_product_price_to_cart_item_data( $cart_item_data, $product_id ) {
-			$product = wc_get_product( $product_id );
-			if ( isset( $_POST['woo_wallet_balance_to_add'] ) && $product ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				$recharge_amount                   = apply_filters( 'woo_wallet_rechargeable_amount', round( sanitize_text_field( wp_unslash( $_POST['woo_wallet_balance_to_add'] ) ), 2 ) );
-				$cart_item_data['recharge_amount'] = $recharge_amount;
+		private function claim_transfer_idempotency_key( $user_id, $key ) {
+			$transient_key = 'wwxfer_' . $user_id . '_' . $key;
+			if ( false === get_transient( $transient_key ) ) {
+				return false;
 			}
-			return $cart_item_data;
+			return (bool) delete_transient( $transient_key );
+		}
+
+		/**
+		 * Issue a fresh idempotency token for a transfer form render. Stored as a
+		 * transient under the user's id so only that user can later claim it.
+		 *
+		 * @param int $user_id User the form will be submitted by.
+		 * @return string Token to embed in a hidden form field.
+		 */
+		public function issue_transfer_idempotency_key( $user_id ) {
+			$user_id = absint( $user_id );
+			if ( ! $user_id ) {
+				return '';
+			}
+			$key = wp_generate_password( 24, false, false );
+			set_transient( 'wwxfer_' . $user_id . '_' . $key, 1, 10 * MINUTE_IN_SECONDS );
+			return $key;
 		}
 
 		/**
@@ -542,8 +560,14 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 */
 		public function woocommerce_available_payment_gateways( $_available_gateways ) {
 			if ( is_wallet_rechargeable_cart() ) {
+				$default_gateway = array();
+				foreach ( WC()->payment_gateways()->payment_gateways as $gateway ) {
+					if ( 'yes' === $gateway->enabled && 'wallet' !== $gateway->id ) {
+						$default_gateway[] = $gateway->id;
+					}
+				}
 				foreach ( $_available_gateways as $gateway_id => $gateway ) {
-					if ( woo_wallet()->settings_api->get_option( $gateway_id, '_wallet_settings_general', 'on' ) != 'on' ) {
+					if ( ! in_array( $gateway_id, woo_wallet()->settings_api->get_option( 'allowed_payment_gateways', '_wallet_settings_general', $default_gateway ), true ) ) {
 						unset( $_available_gateways[ $gateway_id ] );
 					}
 				}
@@ -591,11 +615,33 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 				}
 			}
 			if ( $_coupon_cashback_amount ) {
-				$discount_total  = $order->get_discount_total( 'edit' );
-				$discount_total -= $_coupon_cashback_amount;
-				$order->set_discount_total( $discount_total );
-				$order->set_total( $order->get_total( 'edit' ) + $_coupon_cashback_amount );
+				// Always snapshot the coupon cashback amount for the credit-time recompute fallback.
 				WOO_Wallet_Helper::update_order_meta_data( $order, '_coupon_cashback_amount', $_coupon_cashback_amount );
+
+				// R7: the legacy discount_total/total mutation was replaced with a non-discount
+				// fee item so reportable order totals are not rewritten. Existing upgraded sites
+				// may have woo_wallet_legacy_coupon_cashback_total_mutation=yes (set by 1.6.1
+				// migration) and retain the old behaviour via the flag below.
+				$legacy_mutation = woo_wallet()->settings_api->get_option( 'woo_wallet_legacy_coupon_cashback_total_mutation', '_wallet_settings_credit', 'no' );
+				if ( 'yes' === $legacy_mutation ) {
+					// Legacy path preserved for upgraded sites.
+					$discount_total  = $order->get_discount_total( 'edit' );
+					$discount_total -= $_coupon_cashback_amount;
+					$order->set_discount_total( $discount_total );
+					$order->set_total( $order->get_total( 'edit' ) + $_coupon_cashback_amount );
+				} else {
+					// New path: attach a non-discount fee item so the total reflects the
+					// cashback amount without rewriting discount_total / order total fields.
+					$fee = new WC_Order_Item_Fee();
+					$fee->set_name( __( 'Wallet Cashback (coupon)', 'woo-wallet' ) );
+					$fee->set_amount( $_coupon_cashback_amount );
+					$fee->set_total( $_coupon_cashback_amount );
+					$fee->set_tax_class( '' );
+					$fee->set_tax_status( 'none' );
+					$fee->update_meta_data( '_wc_wallet_cashback_fee', '1' );
+					$order->add_item( $fee );
+					$order->calculate_totals( false );
+				}
 			}
 		}
 
@@ -605,24 +651,51 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 * @since 1.2.1
 		 */
 		public function woo_wallet_add_partial_payment_fee() {
-			$parial_payment_amount = apply_filters( 'woo_wallet_partial_payment_amount', wc()->session->get( 'partial_payment_amount', 0 ) && woo_wallet()->wallet->get_wallet_balance( get_current_user_id(), 'edit' ) >= wc()->session->get( 'partial_payment_amount', 0 ) ? wc()->session->get( 'partial_payment_amount', 0 ) : woo_wallet()->wallet->get_wallet_balance( get_current_user_id(), 'edit' ) );
+			$balance        = woo_wallet()->wallet->get_wallet_balance( get_current_user_id(), 'edit' );
+			$session_amount = ( ! is_null( wc()->session ) ) ? (float) wc()->session->get( 'partial_payment_amount', 0 ) : 0;
+			$desired        = ( $session_amount && $balance >= $session_amount ) ? $session_amount : $balance;
+			$desired        = (float) apply_filters( 'woo_wallet_partial_payment_amount', $desired );
 
-			if ( $parial_payment_amount > 0 ) {
-				$fee = array(
-					'id'        => '_via_wallet_partial_payment',
-					'name'      => __( 'Via wallet', 'woo-wallet' ),
-					'amount'    => (float) -1 * $parial_payment_amount,
-					'taxable'   => false,
-					'tax_class' => 'non-taxable',
-				);
-				if ( is_enable_wallet_partial_payment() && $parial_payment_amount ) {
-					wc()->cart->fees_api()->add_fee( $fee );
+			// Cap to what the cart/mode actually allows so the applied "Via wallet" line
+			// and the wallet debit can never disagree (closes the silent over-cap).
+			$max_amount = woo_wallet_get_partial_payment_max_amount();
+			if ( $desired > $max_amount ) {
+				$desired = $max_amount;
+			}
+
+			if ( $desired > 0 && is_enable_wallet_partial_payment() ) {
+				$mode = woo_wallet_get_partial_payment_tax_mode();
+				if ( 'tax_inclusive_wallet' === $mode ) {
+					// Taxable negative fee: WooCommerce adds its own negative tax on top
+					// of the (clamped) base, so the wallet covers the full gross. The
+					// desired amount is the GROSS to deduct, so the fee base is grossed
+					// down by the effective rate; base + fee-tax reconstructs the gross.
+					$ex_tax   = woo_wallet_get_cart_ex_tax_clampable_total();
+					$rate     = woo_wallet_get_cart_effective_tax_rate();
+					$fee_base = $rate > 0 ? $desired / ( 1 + $rate ) : $desired;
+					$fee_base = min( $fee_base, $ex_tax );
+					$fee      = array(
+						'id'        => '_via_wallet_partial_payment',
+						'name'      => __( 'Via wallet', 'woo-wallet' ),
+						'amount'    => (float) -1 * $fee_base,
+						'taxable'   => true,
+						'tax_class' => apply_filters( 'woo_wallet_partial_payment_fee_tax_class', '' ),
+					);
 				} else {
-					$all_fees = wc()->cart->fees_api()->get_fees();
-					if ( isset( $all_fees['_via_wallet_partial_payment'] ) ) {
-						unset( $all_fees['_via_wallet_partial_payment'] );
-						wc()->cart->fees_api()->set_fees( $all_fees );
-					}
+					$fee = array(
+						'id'        => '_via_wallet_partial_payment',
+						'name'      => __( 'Via wallet', 'woo-wallet' ),
+						'amount'    => (float) -1 * $desired,
+						'taxable'   => false,
+						'tax_class' => 'non-taxable',
+					);
+				}
+				wc()->cart->fees_api()->add_fee( $fee );
+			} else {
+				$all_fees = wc()->cart->fees_api()->get_fees();
+				if ( isset( $all_fees['_via_wallet_partial_payment'] ) ) {
+					unset( $all_fees['_via_wallet_partial_payment'] );
+					wc()->cart->fees_api()->set_fees( $all_fees );
 				}
 			}
 		}
@@ -635,7 +708,9 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 * @return array
 		 */
 		public function woocommerce_cart_totals_get_fees_from_cart_taxes( $fee_taxes, $fee ) {
-			if ( '_via_wallet_partial_payment' === $fee->object->id ) {
+			// In `tax_inclusive_wallet` mode the fee is intentionally taxable so the
+			// wallet covers the tax line — only strip the tax in `payment` mode.
+			if ( '_via_wallet_partial_payment' === $fee->object->id && 'tax_inclusive_wallet' !== woo_wallet_get_partial_payment_tax_mode() ) {
 				$fee_taxes = array();
 			}
 			return $fee_taxes;
@@ -647,12 +722,10 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 * @return NULL
 		 */
 		public function woocommerce_review_order_after_order_total() {
-			if ( apply_filters( 'woo_wallet_disable_partial_payment', ( is_full_payment_through_wallet() || is_wallet_rechargeable_cart() || is_wallet_account_locked() ) ) ) {
+			if ( apply_filters( 'woo_wallet_disable_partial_payment', ( 'on' !== woo_wallet()->settings_api->get_option( 'is_enable_partial_payment', '_wallet_settings_general', 'on' ) || is_full_payment_through_wallet() || is_wallet_rechargeable_cart() || is_wallet_account_locked() ) ) ) {
 				return;
 			}
 			wp_enqueue_style( 'dashicons' );
-			wp_enqueue_style( 'woo-wallet-payment-jquery-ui' );
-			wp_enqueue_script( 'jquery-ui-tooltip' );
 			woo_wallet()->get_template( 'woo-wallet-partial-payment.php' );
 		}
 
@@ -684,13 +757,12 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 */
 		public function display_cashback() {
 			$user_id = get_current_user_id();
-			if ( ! is_user_logged_in() ) {
-				return;
-			}
-			$user         = new WP_User( $user_id );
-			$exclude_role = woo_wallet()->settings_api->get_option( 'exclude_role', '_wallet_settings_credit', array() );
-			if ( ! array_diff( $user->roles, $exclude_role ) ) {
-				return;
+			if ( $user_id ) {
+				$user         = new WP_User( $user_id );
+				$exclude_role = woo_wallet()->settings_api->get_option( 'exclude_role', '_wallet_settings_credit', array() );
+				if ( ! array_diff( $user->roles, $exclude_role ) ) {
+					return;
+				}
 			}
 			$product = wc_get_product( get_the_ID() );
 			if ( ! $product || is_wallet_account_locked() ) {
@@ -765,14 +837,14 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		/**
 		 * Shortcode Wrapper.
 		 *
-		 * @param string[] $function Callback function.
+		 * @param string[] $callback Callback function.
 		 * @param array    $atts     Attributes. Default to empty array.
 		 *
 		 * @return string
 		 */
-		public static function shortcode_wrapper( $function, $atts = array() ) {
+		public static function shortcode_wrapper( $callback, $atts = array() ) {
 			ob_start();
-			call_user_func( $function, $atts );
+			call_user_func( $callback, $atts );
 			return ob_get_clean();
 		}
 
@@ -808,26 +880,12 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 			} elseif ( is_wallet_account_locked() ) {
 				woo_wallet()->get_template( 'no-access.php' );
 			} else {
-				wp_enqueue_style( 'woo-wallet-payment-jquery-ui' );
 				wp_enqueue_style( 'dashicons' );
 				wp_enqueue_style( 'select2' );
-				wp_enqueue_style( 'jquery-datatables-style' );
-				wp_enqueue_style( 'jquery-datatables-responsive-style' );
-				wp_enqueue_script( 'jquery-datatables-script' );
-				wp_enqueue_script( 'jquery-datatables-responsive-script' );
+				wp_enqueue_style( 'woo-wallet-style' );
 				wp_enqueue_script( 'selectWoo' );
-				wp_enqueue_script( 'jquery-ui-datepicker' );
 				wp_enqueue_script( 'wc-endpoint-wallet' );
-				if ( isset( $_GET['wallet_action'] ) && ! empty( $_GET['wallet_action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-					if ( 'view_transactions' === $_GET['wallet_action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-						woo_wallet()->get_template( 'wc-endpoint-wallet-transactions.php' );
-					} elseif ( in_array( $_GET['wallet_action'], apply_filters( 'woo_wallet_endpoint_actions', array( 'add', 'transfer' ) ), true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-						woo_wallet()->get_template( 'wc-endpoint-wallet.php' );
-					}
-					do_action( 'woo_wallet_shortcode_action', wp_unslash( $_GET['wallet_action'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.NonceVerification.Recommended
-				} else {
-					woo_wallet()->get_template( 'wc-endpoint-wallet.php' );
-				}
+				woo_wallet()->get_template( 'wc-endpoint-wallet.php' );
 			}
 		}
 		/**
@@ -872,6 +930,17 @@ if ( ! class_exists( 'Woo_Wallet_Frontend' ) ) {
 		 */
 		public function woo_wallet_is_enable_transfer( $is_enable ) {
 			if ( 'on' !== woo_wallet()->settings_api->get_option( 'is_enable_wallet_transfer', '_wallet_settings_general', 'on' ) ) {
+				$is_enable = false;
+			}
+			return $is_enable;
+		}
+		/**
+		 * Check if wallet top-up enabled
+		 *
+		 * @param bool $is_enable is_enable.
+		 */
+		public function woo_wallet_is_enable_top_up( $is_enable ) {
+			if ( 'on' !== woo_wallet()->settings_api->get_option( 'is_enable_wallet_topup', '_wallet_settings_general', 'on' ) ) {
 				$is_enable = false;
 			}
 			return $is_enable;

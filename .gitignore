@@ -2,7 +2,34 @@
 /node_modules/
 none
 package-lock.json
+skills-lock.json
 
 # Sass
 .sass-cache/
-woo-wallet.zip
+/build/
+
+# WordPress.org SVN packaging output
+/dist/
+
+# Claude/AI
+.claude/*
+!.claude/commands/
+CLAUDE.md
+.agents
+
+docs
+
+# PHP / Composer / tests
+/vendor/
+composer.lock
+wp-tests-config.php
+.phpunit.result.cache
+
+# Playwright / MCP scratch
+.playwright-mcp/
+
+# Local screenshots / scratch images
+*.png
+
+# Archives
+*.zip

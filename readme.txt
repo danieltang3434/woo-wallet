@@ -1,77 +1,78 @@
 === Wallet for WooCommerce ===
 Contributors: standalonetech, subratamal, moumitaadak
-Tags: terawallet, woocommerce wallet, digital wallet, cashback, partial payment
+Tags: woocommerce wallet, cashback, store credit, partial payment, digital wallet
 Requires PHP: 7.4
 Requires at least: 6.4
-Tested up to: 6.7
-Stable tag: 1.5.10
-Donate link: https://donate.stripe.com/fZeaFydax6NNfjWeVc
+Tested up to: 7.0
+Stable tag: 1.6.7
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
-A extendable WooCommerce wallet system which support payment, partial payment, cashback reward program as well as refund for your WooCommerce store.
+✨ WooCommerce wallet with cashback rewards, store credit, partial payment & top-ups. Boost customer loyalty effortlessly.
 
 == Description ==
 
-= Maximize Convenience and Savings: Wallet for WooCommerce Facilitates Quick Funds, Cashback, Refunds, and Partial Payments! =
+Maximize convenience and savings for your customers with **Wallet for WooCommerce** (TeraWallet). This all-in-one digital wallet and store credit system is specifically designed to streamline the checkout process and boost customer loyalty.
 
-TeraWallet is an advanced digital wallet and credit system specially designed for WooCommerce. It empowers you to offer your customers a seamless payment experience by allowing them to deposit funds into their accounts, transfer money to other users, and make purchases using their wallet balance.
+TeraWallet empowers your customers to deposit funds into their personal accounts, transfer money to other users, and make purchases effortlessly using their wallet balance. By reducing the need for repeated payment detail entries, you provide a frictionless shopping experience that encourages repeat business.
 
-Beyond its core wallet functionality, TeraWallet introduces an enticing cashback rewards system that enables you to provide discounts and rewards to your customers based on their purchases. You have the flexibility to set cashback rates for specific products or categories, and even offer bonus cashback during promotions or special events.
+Beyond core wallet functionality, TeraWallet features a robust **Cashback Rewards System**. Incentivize purchases by offering rewards based on cart totals, specific products, or categories. You can even convert WooCommerce coupons into wallet rewards, providing a unique way to drive engagement.
 
-TeraWallet puts you in control with extensive customization options. By implementing TeraWallet, you can effortlessly enhance customer loyalty and drive repeat purchases through the attractive cashback rewards. Discover the power of TeraWallet today and optimize your WooCommerce payment system for maximum efficiency!
+👉 **Try the live demo:** [https://demo.standalonetech.com/](https://demo.standalonetech.com/)
+👉 **Read full documentation:** [https://docs.standalonetech.com/](https://docs.standalonetech.com/)
+👉 **[Upgrade to Pro](https://standalonetech.com/product/woocommerce-wallet-pro/?utm_source=wordpress&utm_medium=plugin_page&utm_campaign=upgrade)** — unlock withdrawals, expiry, coupons, importer & AffiliateWP integration.
 
-[youtube https://www.youtube.com/watch?v=Fnpp8qxAWBw]
+== ✨ Why choose Wallet for WooCommerce? ==
 
-= Use case of TeraWallet =
-With this plugin, your customers no longer need to repeatedly enter payment details. They can conveniently log in and use their wallet funds to make purchases. Additionally, customers can earn cashback by utilizing their wallet balance. The admin also has the ability to process refunds directly to the customer's wallet.
+*   🚀 **Frictionless Checkout:** One-click payments via wallet balance reduce cart abandonment.
+*   💰 **Automated Cashback:** Automated rewards keep customers coming back for more.
+*   🏦 **Store Credit System:** Easily handle refunds by crediting the user's wallet instantly.
+*   🔄 **Wallet Transfers:** Allow customers to share funds with friends and family.
 
-= Features of TeraWallet =
-- Wallet system works just like any other payment method.
-- Set wallet system payment method title for the front-end.
-- The customers can use various payment methods to add money.
-- The admin can process refund using the wallet money.
-- Customers will earn cashback according to cart price, product or product category wise.
-- Customers can made partial payment.
-- Set cashback amount calculation using fixed or percent method.
-- Admin can export users wallet transactions.
-- Admin can setup low wallet balance notification email.
-- Admin can lock / unlock any user wallet.
-- From the backend, the admin can view the transaction history.
-- Customers receive notification emails for every wallet transaction.
-- The admin can adjust the wallet amount of any customer from the backend.
-- Users can transfer wallet amount to other user.
-- Shortcode `woo-wallet` which will display user wallet page.
-- Built with a REST API
-- Convert WooCommerce coupon into cashback.
-- Support WordPress Multisite Network
-- Support multiple languages translations.
-- Support [CURCY – Multi Currency for WooCommerce](https://wordpress.org/plugins/woo-multi-currency/)
-- Support [FOX – Currency Switcher Professional for WooCommerce](https://wordpress.org/plugins/woocommerce-currency-switcher/)
-- Support [WooCommerce Multilingual & Multicurrency with WPML](https://wpml.org/)
-- Support WooCommerce block checkout.
-- Support WooCommerce Subscriptions.
-- Support WooCommerce Multivendor Marketplace by WC Lovers.
-- Support WC Marketplace.
-- Support Dokan Multivendor Marketplace.
+== 🛠 Features ==
 
-> Experience the future of payments by trying our [demo](https://demo.standalonetech.com/).
+*   🏦 **Core Wallet Management:** A centralized ledger system that tracks every credit and debit with 100% accuracy using SQL-level locking to prevent race conditions.
+*   💰 **Dynamic Cashback System:**
+    *   **Cart-Wise:** Rewards based on the total order value.
+    *   **Product-Wise:** Granular control over rewards for individual items.
+    *   **Category-Wise:** Rewards based on product taxonomies.
+*   💳 **Smart Checkout Options:**
+    *   **Full Payment:** Pay for the entire order using the wallet gateway.
+    *   **Partial Payment:** Use wallet balance for part of the total and pay the rest via other gateways (Stripe, PayPal, etc.).
+    *   **Auto-Deduct:** Automatically apply available balance as a discount at checkout.
+*   🔄 **User Empowerment:**
+    *   **Wallet Top-ups:** Customers can add funds via their dashboard using any supported payment method.
+    *   **Peer-to-Peer Transfers:** Securely send wallet balance to other registered users via email.
+*   🎁 **Engagement Rewards:** Credit users for specific actions:
+    *   New user registration bonus.
+    *   Daily login rewards.
+    *   Product review rewards.
+*   🛠 **Admin Control Center:**
+    *   View all user balances and transaction history.
+    *   Manually adjust (credit/debit) any user's balance with detailed notes.
+    *   Lock/Unlock user wallets for security and fraud prevention.
+*   🔗 **Seamless Integrations:**
+    *   Full support for WooCommerce Blocks checkout.
+    *   Compatible with WPML and WooCommerce Subscriptions.
+    *   Built-in support for Dokan, WCFM, and WCMarketplace.
 
-= Workflow of TeraWallet =
-After the plugin installation, the admin needs to do the payment method configuration. Set the title and select allowed payments for adding money.
-Now for enable cashback rules, navigate to TeraWallet > Settings >  Credit. Now setup cashback rule according to your requirement. If cashback rule set to product wise then admin will have an option to add cashback rule for each product.
-On the front-end, the customers can log in to the store and go to wallet page from My Account. Enter the amount to add and then complete the checkout process just like any other product purchase.
+*   🌍 **Multi-Currency Support:** First-class integrations with the most-used WooCommerce currency switchers. Wallet balances, top-ups, transfers, and cashback are all converted through the active provider's live rates.
+    *   [YayCurrency – Multi-Currency Switcher](https://wordpress.org/plugins/yaycurrency/)
+    *   [WOOCS – WooCommerce Currency Switcher (FOX)](https://wordpress.org/plugins/woocommerce-currency-switcher/)
+    *   [WPML Multilingual & Multi-Currency](https://wpml.org/) (WCML)
+    *   [CURCY – Multi Currency for WooCommerce](https://wordpress.org/plugins/woo-multi-currency/) (VillaTheme)
+    *   [Aelia Currency Switcher](https://aelia.co/shop/currency-switcher-woocommerce/)
+    *   **Generic fallback** for any other plugin that filters `woocommerce_currency` — active-currency detection still works, conversion falls open to the stored amount with an audit-log warning.
 
-= Premium extensions =
+== 🚀 Pro Features ==
 
-- [Wallet Coupons](https://standalonetech.com/product/wallet-coupons/)
-- [Wallet Withdrawal](https://standalonetech.com/product/wallet-withdrawal/)
-- [Wallet Importer](https://standalonetech.com/product/wallet-importer/)
-- [Wallet AffiliateWP](https://standalonetech.com/product/wallet-affiliatewp/)
+**[⭐ Upgrade to Pro](https://standalonetech.com/product/woocommerce-wallet-pro/?utm_source=wordpress&utm_medium=plugin_page&utm_campaign=upgrade)** to unlock advanced wallet features and specialized integrations:
 
-= Translator Contributors =
-- [#fa_IR](https://translate.wordpress.org/locale/fa/default/wp-plugins/woo-wallet) - [@rahimvaziri](https://wordpress.org/support/users/rahimvaziri/)
-- [#es_ES](https://translate.wordpress.org/locale/es/default/wp-plugins/woo-wallet) - [@chipweb](https://wordpress.org/support/users/chipweb/)
+*   💸 **Wallet Withdrawal:** Allow customers to request withdrawals from their wallet balance to their bank or other payment methods.
+*   ⌛ **Wallet Expiry:** Set expiration dates for wallet balance or cashback to encourage timely spending.
+*   🎟️ **Wallet Coupons:** Create exclusive coupons that can only be redeemed into the user's wallet.
+*   📥 **Wallet Importer:** Easily bulk import wallet balances and transaction history from CSV files.
+*   🤝 **AffiliateWP Integration:** Automatically credit affiliate commissions directly to the user's wallet.
 
 == Installation ==
 
@@ -84,9 +85,9 @@ On the front-end, the customers can log in to the store and go to wallet page fr
 
 = Automatic installation =
 
-Automatic installation is the easiest option as WordPress handles the file transfers itself and you don’t need to leave your web browser. To do an automatic install of WooCommerce Wallet Payment, log in to your WordPress dashboard, navigate to the Plugins menu and click Add New.
+Automatic installation is the easiest option as WordPress handles the file transfers itself and you don't need to leave your web browser. To do an automatic install of WooCommerce Wallet Payment, log in to your WordPress dashboard, navigate to the Plugins menu and click Add New.
 
-In the search field type “WooCommerce Wallet Payment” and click Search Plugins. Once you’ve found our WooCommerce Wallet Payment plugin you can view details about it such as the point release, rating and description. Most importantly of course, you can install it by simply clicking “Install Now”.
+In the search field type "Wallet for WooCommerce" and click Search Plugins. Once you've found the plugin you can view details about it such as the point release, rating and description. Most importantly of course, you can install it by simply clicking "Install Now".
 
 = Manual installation =
 
@@ -98,148 +99,206 @@ Automatic updates should work like a charm; as always though, ensure you backup 
 
 If on the off-chance you do encounter issues with the wallet endpoints pages after an update you simply need to flush the permalinks by going to WordPress > Settings > Permalinks and hitting 'save'. That should return things to normal.
 
+= Important =
+
+A hidden "Wallet Topup" product is automatically created upon activation. Ensure it remains **Published** and **Private**.
+
 == Frequently Asked Questions ==
 
-= Does this plugin work with newest WP version and also older versions? =
+= How does wallet payment work? =
+Wallet payment acts as a native WooCommerce gateway. Customers with sufficient balance can select "Wallet" at checkout to pay for their order instantly.
 
-Yes, this plugin works fine with WordPress 6.5, It is also compatible for older WordPress versions upto 6.0.
+= Does it support partial payment? =
+Yes! If enabled in settings, customers can use their wallet balance to pay for a portion of the order and cover the remainder with another gateway like Stripe or PayPal.
 
-= Up to which version of WooCommerce this plugin compatible with? =
+= When is cashback applied? =
+Cashback is triggered by order status changes. You can configure which status (e.g., 'Completed' or 'Processing') triggers the reward in the plugin settings.
 
-This plugin is compatible with the latest version of WooCommerce.
+= Why is the wallet not visible at checkout? =
+Ensure the Wallet gateway is enabled in **WooCommerce > Settings > Payments**. Also, check if "Hide if empty" is enabled in TeraWallet settings if the user has a zero balance.
 
-= Will WooCommerce Wallet work with WordPress multisite network? =
+= Where can I get support? =
+You can ask for help in the [WordPress Plugin Forum](https://wordpress.org/support/plugin/woo-wallet) or email us at support@standalonetech.com.
 
-Yes, WooCommerce Wallet plugin is fully compatible with Wordpress multisite.
-
-= Where can I get support or talk to other users? =
-
-If you get stuck, you can ask for help in the [WordPress Plugin Forum](https://wordpress.org/support/plugin/woo-wallet) or just email us at support@standalonetech.com.
-
-= Where can I report bugs or contribute to the project? =
-
-Bugs can be reported either in our support forum or preferably on the [GitHub repository](https://github.com/malsubrata/woo-wallet/issues).
-
-= Where can I find the REST API documentation? =
-
-You can find the documentation of our [Wallet REST API Docs](https://github.com/malsubrata/woo-wallet/wiki/API-V3).
-
-= This plugin is awesome! Can I contribute? =
-
-Yes you can! Join in on our [GitHub repository](https://github.com/malsubrata/woo-wallet) :)
+= Where is the REST API documentation? =
+You can find the documentation for our [Wallet REST API here](https://github.com/malsubrata/woo-wallet/wiki/API-V3).
 
 == Screenshots ==
 
-1. User wallet page.
-2. Transfer wallet balance.
-3. View transaction details.
-4. All user balance details.
-5. Admin view transaction details.
+1. User wallet dashboard page.
+2. Wallet topup page.
+3. Transfer wallet balance.
+4. Transaction details page.
+5. Admin wallet details page.
 6. Admin adjust wallet balance.
-7. WooCommerce wallet payment gateway.
-8. WooCommerce refund.
-9. Wallet actions.
+7. Admin wallet transaction details page.
+8. Wallet payment gateway.
+9. WooCommerce refund.
+10. Wallet actions.
 
 == Changelog ==
-=v1.5.10 ( December 12, 2024) =
-- **Fix:-** Refund issue.
 
-=v1.5.9 ( November 26, 2024) =
-- **Fix:-** Plugin Localisation issue for WP 6.7.
+= v1.6.7 (July 8, 2026) =
+– **Security:-** Wallet CSV exports are now written to a dedicated, access-protected `uploads/woo-wallet-exports/` directory (with an `.htaccess` deny rule and index file) instead of the public uploads root, so exported financial data is no longer directly downloadable by URL.
+– **Security:-** Settings saved through the Settings API are now sanitized by default even when a field does not declare its own `sanitize_callback`, preventing raw values from being stored.
+– **Security:-** Sell-content template output is now escaped with an allow-list (`wp_kses`) before rendering, while preserving the purchase form controls.
+– **Fix:-** Replaced the deprecated `utf8_encode()` call in the CSV exporter with `mb_convert_encoding()`.
+– **Fix:-** The order refund AJAX handler now closes its output buffer before returning, avoiding a stray/unbalanced buffer.
+– **Fix:-** Corrected two internationalization strings that passed variables into gettext calls (WCMp commission threshold message and the users list "All" count).
+– **Tweak:-** The "Upgrade to Pro" admin notice is now permanently dismissible — dismissing it no longer re-appears after 14 days.
+– **Tweak:-** Added a direct-access guard to the settings loader.
 
-=v1.5.8 ( November 26, 2024) =
-- **New:-** User role wise cashback restriction.
-- **Fix:-** WooCommerce analytics and dashboard reports.
-- **Fix:-** Wallet amount display on cart and checkout block.
+= v1.6.6 (June 27, 2026) =
+– **New:-** Added a **Wallet Dashboard** reports page — the new default TeraWallet admin landing screen — showing store-wide wallet liability at a glance: total outstanding liability, the number of wallets holding a positive balance, lifetime credited and debited totals, and an interactive composition bar that breaks the liability down by source (top-ups, cashback, refunds, partial payments, transfers, adjustments). The page is server-rendered (fully usable with JavaScript disabled) with a live **Refresh** button, and the summary is cached and automatically invalidated whenever a wallet transaction is recorded, so a page reload always reflects current data. Add-ons can inject their own metric cards and report tabs through the `woo_wallet_reports_metrics` and `woo_wallet_reports_tabs` filters and read the figures from the `terawallet/v1/admin/reports/summary` REST endpoint (see docs/EXTENDING_REPORTS.md).
 
-=v1.5.7 ( September 02, 2024) =
-- **Fix:-** Broken wallet page link on user page.
-- **Fix:-** Security issues.
-- **Fix:-** Wallet top-up amount widget in admin panel.
+= v1.6.5 (June 25, 2026) =
+– **Fix:-** Deleting a WordPress user now clears that user's wallet ledger for all of their transactions. The previous cleanup used an inner join between the transactions and transaction-meta tables, so transactions without any meta (most top-ups and plain credits/debits) were silently skipped. The user's transactions are now soft-deleted (marked deleted, recoverable) via the `deleted_user` hook; the `woo_wallet_delete_transaction_records` filter (now also passed the user ID) still lets you disable this.
+– **Security:-** Fixed a missing-authorization flaw (≤ 1.6.3) that let any authenticated user (Subscriber and above) enumerate the login name, email address and user ID of every WordPress account — including administrators — through the `terawallet_export_user_search` AJAX action. The capability guard never fired because it tested the (always-truthy) capability *string* instead of `current_user_can()`; the admin exporter search now verifies the wallet capability and uses its own dedicated nonce that is never exposed on the front-end My Account page. The peer-to-peer transfer recipient search is unaffected.
+– **Tweak:-** Hardened the new `woo_wallet_transactions_query_order_cols` filter: the order-by column whitelist is now passed through `sanitize_key()` so a third-party plugin that appends to the filter cannot smuggle SQL metacharacters into the transaction query's ORDER BY identifier.
 
-=v1.5.6 ( July 20, 2024) =
-- **Fix:-** Permalinks issues.
-- **Fix:-** Partial payment issues.
+= v1.6.4 (June 10, 2026) =
+– **New:-** The customer wallet dashboard now shows a row of summary cards — **Total top-ups**, **Total spent** (covers both full wallet payments and partial payments), **Cashback earned** (shown only when the cashback reward program is enabled), and **Available balance** — above the recent transactions list. Third-party/add-on plugins can register their own cards (e.g. "Total withdrawn") via the new `woo_wallet_dashboard_stat_cards` filter. The figures share one helper (`woo_wallet_get_user_category_total()`) with the admin user report, so dashboard and admin always agree.
+– **New:-** Partial payment "Tax treatment" setting. Choose **Wallet pays goods only** (default — the non-taxable wallet fee is clamped to the ex-tax subtotal and the tax is charged on the order; correct when top-ups are not taxed) or **Wallet pays the whole order including tax** (a taxable wallet fee so the wallet can cover the tax line; use only when top-ups are taxed at load). This resolves the long-standing "tax stays on the full order" reports, caused by WooCommerce clamping negative fees to the ex-tax total (woocommerce/woocommerce#28028) so a non-taxable wallet fee could never pay the tax portion.
+– **New:-** Partial wallet payments are now refunded proportionally to the customer wallet when you issue a **partial** WooCommerce refund (previously only a full cancellation refunded the wallet). Opt out via the new "Refund wallet on partial refunds" setting; override the amount with the `woo_wallet_partial_payment_refund_amount` filter. Idempotent per refund and capped so the cumulative wallet refund can never exceed the original wallet debit.
+– **New:-** "Deduct wallet balance" timing setting — keep deducting at order placement (default) or switch to **When payment completes** so abandoned/failed orders never leave the wallet debited. If the balance was spent before payment cleared, the order is placed on-hold and the `woo_wallet_partial_payment_debit_failed` action fires instead of overdrafting.
+– **Fix:-** Closed a silent over-cap where entering a wallet amount larger than WooCommerce would accept showed one figure at checkout but debited a smaller one. The applied "Via wallet" amount is now capped to the active mode's true ceiling (filter `woo_wallet_partial_payment_max_amount`) so the displayed amount and the wallet debit always agree.
+– **Tweak:-** Partial-payment refunds (both full cancellation and partial refunds) now reverse the exact base-currency amount originally debited — captured on the order as `_partial_payment_base_amount` — rather than re-converting at a later exchange rate, eliminating phantom FX gain/loss on multicurrency stores.
+– **Tweak:-** The partial-payment debit is now serialised by a per-order lock (in addition to the existing idempotency meta) so concurrent gateway webhooks cannot double-debit.
+– **Tweak:-** The "Details" column in the customer wallet dashboard transaction table now shows its full text by wrapping onto multiple lines instead of truncating with an ellipsis. The column keeps its responsive priority (other columns still collapse into the expandable row on narrow screens), so long descriptions stay readable on mobile without widening the table.
+– **New:-** The wallet emails ("New wallet transaction" and "Low Wallet Balance") now carry the standard WooCommerce **Additional content** box and are grouped under **Payments** in WooCommerce 10.3+ email settings, matching how core WooCommerce emails behave.
+– **New:-** Both wallet emails now include action buttons — "View your wallet" on the transaction email and "Recharge your wallet now" on the low-balance email — linking straight to the customer's wallet/top-up page.
+– **Tweak:-** Reworked the wallet transaction email to clearly show the transaction type, amount, details, date and the resulting balance as separate, correctly formatted values.
+– **Fix:-** The plain-text wallet transaction email showed the current balance in place of the transacted amount (so the credited/debited figure was wrong) and ran words together; both are corrected.
+– **Fix:-** The low-balance email no longer re-sends on every subsequent debit while the balance is already low — it now fires once, only when a debit crosses the configured threshold.
+– **Fix:-** Corrected the "Please recharge you wallet" typo in the low-balance email.
+– **Security:-** Hardened the My Account wallet page so the `wallet_action` query value is sanitised and allow-listed before it is used to dispatch a tab's content hook, preventing a logged-in customer from triggering arbitrary `woo_wallet_*_content` actions/filters. The set of allowed tabs is filterable via `woo_wallet_allowed_dashboard_actions`.
+– **Fix:-** On single-currency (single_base) stores, debits could be silently rejected even though the dashboard showed an ample balance, on installs that had previously run in multi-currency / per-currency mode. The displayed balance currency-converted old foreign-currency rows, but the race-safe debit gate reads the raw ledger sum (which assumes every row is already in base currency), so the two figures diverged. A one-time upgrade routine now normalizes any leftover non-base ledger rows into the store base currency — converted at the same rate the dashboard already used, with the original amount/currency/rate preserved in the transaction's audit columns — so the spendable balance and the displayed balance always agree.
 
-= v1.5.5 ( July 11, 2024 ) =
-- **Fix:-** Security issues.
-- **Fix:-** Permalinks issues.
+= v1.6.3 (May 30, 2026) =
+– **New:-** Transaction category is now a first-class indexed column on `woo_wallet_transactions` (was previously only on transaction meta). Adds `(user_id, category, deleted)` index for cheap admin filters/aggregations.
+– **New:-** Filterable PHP registry of canonical categories (`woo_wallet_get_transaction_types`, filter `woo_wallet_transaction_types`) so marketplace and addon plugins can register their own kinds.
+– **New:-** Admin "Transaction descriptions" settings tab with per-category description templates (tokens: `{order_id}`, `{amount}`, `{user_name}`, `{currency}`, `{original_details}`). When a template is set, it replaces the system-generated description on new transactions.
+– **New:-** Transaction CSV export now includes the `category` column.
+– **Tweak:-** Ledger writers (`credit`, `debit`, `transfer`) accept `$args['category']`; legacy `$args['for']` continues to work and is normalised (`credit_purchase` → `topup`, `purchase` → `partial_payment`). Transfer legs are now correctly tagged `transfer`.
+– **Tweak:-** Admin balance-details columns and the customer/admin REST `category` filter now read the column directly instead of joining the meta table.
+– **Tweak:-** The Wallet > Users bulk Credit / Debit actions now collect amount and description in a WCBackboneModal popup (consistent with the existing Delete Log dialog) instead of inline form fields. Bulk admin adjustments are tagged `category='adjustment'`.
+– **Fix:-** Ledger amounts are now quantized to the store's price decimals on write, and the spendable balance is floored (never rounded up) on read — closing a rounding loophole where sub-cent "dust" from multicurrency conversion (e.g. a raw balance of 124.12511111 shown as 124.13) could not be debited, blocking wallet-gateway payments and silently breaking partial payments.
+– **Security:-** Per-category description templates are now stripped of HTML before the rendered text is stored on a transaction, so a template using the `{user_name}` or `{original_details}` token can no longer become a stored-XSS vector via an attacker-controlled display name or details string.
+– **Security:-** Transaction category slugs passed to the ledger writers are now validated against the registered category set; an unregistered slug collapses to `other` instead of being written verbatim, preventing third-party code from polluting the `category` column with unfilterable values.
 
-= v1.5.4 ( May 10, 2024 ) =
-- **Fix:-** Multiple refund of partial payment amount when order cancelled.
-- **Fix:-** Rewrite rule issues for wallet endpoints.
+= v1.6.2 (May 25, 2026) =
+– **Security:-** Admin bulk credit/debit (`POST /terawallet/v1/admin/transactions/bulk`) now records a per-user idempotency sub-key. A retry after a mid-loop process death no longer re-credits users who already received the credit on the first attempt.
+– **Security:-** Admin bulk credit/debit now forwards the request `currency` argument, fixing a multi-currency bug where the stored amount depended on the admin's active currency switcher state.
+– **Security:-** Cancelled-order partial-payment refund is now wrapped in a per-order `GET_LOCK`, so two concurrent cancel webhooks for the same order can no longer double-refund the wallet.
+– **Security:-** Section-heading admin settings rows are now rendered with the label as a plain text node, and both label and hint are sanitised with `wp_kses_post()` on the REST response — closing a stored-XSS vector exploitable by a third-party plugin hooking the `woo_wallet_action_*_form_fields` filter chain.
+– **Security:-** `WooWallet_Referral_Service::record_signup()` now serialises its existence check and INSERT under a per-referred-user `GET_LOCK`, preventing two concurrent signup-drain hooks from writing duplicate pending sign-up rows that could later be credited twice.
+– **Fix:-** New-user-registration and referral signup bonuses are now credited for users created via SSO / SAML, social login, the REST API, WP-CLI or any programmatic `wp_insert_user()`. A new early `user_register` capture (`Woo_Wallet_Signup_Handler`) defers crediting until the earning-action registry is loaded, so signups created before `woocommerce_init` are no longer missed.
+– **Fix:-** Referral visit and signup bonuses are now credited in the store base currency, matching the amount entered in settings — no more unwanted active-currency conversion in multi-currency stores.
+– **Fix:-** The referral "Signups" limit now counts credited signups instead of registrations, so a referred customer who never completes the minimum spend no longer consumes a limit slot.
+– **Fix:-** Crediting a referral signup whose referrer account was deleted no longer credits user ID 0.
+– **Tweak:-** Referral "Minimum Order Amount" setting renamed to "Minimum Spend" with a clearer description — it gates on the referred customer's total lifetime spend.
+– **Tweak:-** Loader for action/REST classes now hooks `woocommerce_init` instead of `init`, removing the WooCommerce-existence guard while keeping both the WC-inactive fatal and the WP 6.7 translation notice fixed.
+– **Tweak:-** Redesigned the Referrals action settings for clarity — labelled fields, section headings, inline help text, and side-by-side limit controls with the cap hidden until a limit period is chosen.
+– **New:-** Referral activity is now recorded in a dedicated `woo_wallet_referrals` database table — one row per visitor or sign-up referral, with status, reward amount and the currency it was credited in. Replaces the scattered `_woo_wallet_referring_*` user meta and gives referrals a full audit trail.
+– **New:-** The customer Referrals page now shows a referral history — who was referred, the reward type, amount, status (pending / credited / rejected) and date — alongside a converted earnings summary.
+– **New:-** New admin Referral Report screen (TeraWallet → Referral Report) listing every referral with referrer / type / status / date-range filters, a store-wide summary header and a filtered CSV export.
+– **Fix:-** Referral earnings shown to customers now carry their currency and reconvert to the active storefront currency on a currency switch — previously the total was a raw untagged number that could display incorrectly and never reconverted.
 
-= v1.5.3 ( May 02, 2024 ) =
-- **Fix:-** Partial payment option not showing at old WooCommerce checkout page issue.
+= v1.6.1 (May 20, 2026) =
+– **Security:-** Wrapped `wallet_cashback()` in a per-order `GET_LOCK` mirroring the 1.6.0 `wallet_credit_purchase` fix, so duplicate `processing`/`completed` status transitions or replayed gateway webhooks can no longer double-credit cashback. Order meta now stores an array of credited transaction ids so historical doubles are recoverable.
+– **Security:-** Cashback clawback on cancellation no longer fails silently when the customer has spent the credit. Default policy: debit whatever balance remains and log the gap to a new `_cashback_unreversed_amount` order meta + order note. Opt-in setting `cashback_clawback_allow_negative` allows sites to drive the wallet negative for exact reversal.
+– **Security:-** The Delete Logs bulk operation is now wrapped in `GET_LOCK('woo_wallet_lock_user_<id>')` + `START TRANSACTION`, matching `recode_transaction()` and `transfer()`. Closes a race where a concurrent top-up landing between the pre-delete `SUM` and the post-delete re-credit was silently lost.
+– **New:-** New refund handler on `woocommerce_order_refunded` clawing back cashback prorated against the refunded fraction. Off by default for upgrade safety; enable in Settings → Wallet Credit → Refund clawback. New filter `woo_wallet_cashback_refund_clawback_amount` for marketplace overrides.
+– **New:-** New `max_cashback_scope` setting (`per_item` | `per_order`). Defaults to `per_order` on fresh installs so the global cap applies once per cart; existing sites are migrated to `per_item` to preserve current behaviour.
+– **New:-** REST transactions endpoints (`/terawallet/v1/me/transactions` and `/wc/v3/wallet/transactions`) now expose a typed `category` field (`topup`, `cashback`, `cashback_adjustment`, `cashback_refund`, `partial_payment`, `transfer`, `refund`, `adjustment`, `other`) and accept a `category=` query argument.
+– **New:-** Cashback expiry seam: new filter `woo_wallet_cashback_expiry_timestamp` lets Pro and addons mark a cashback row as expiring on a given timestamp; the value is stored in transaction meta and projected as `cashback_expires_at` in the REST response. Core does not enforce expiry.
+– **New:-** Unified the React Actions tab with the standard settings flow. Each earning action (daily visits, new registration, product review, referrals, sell-content) is now rendered as a grouped collapsible card inside the same Panel component that powers General and Credit Options, and saves through `POST /wc/v3/wallet/settings/section` instead of a dedicated `/action` endpoint.
+– **New:-** Action settings are now persisted in a single `_wallet_settings_actions` option with namespaced keys (`{action_id}__{field}`) — readable via `woo_wallet_get_setting( '_wallet_settings_actions', 'daily_visits__amount' )`. An idempotent 1.6.1 migration copies pre-existing per-action options (`woo_wallet_daily_visits_settings`, etc.) into the merged row; the legacy rows are kept in place as a rollback safety net.
+– **New:-** Delete Logs bulk action on the TeraWallet → Wallet admin screen now opens a modal that lets the admin pick the **delete mode** (Soft — recoverable, sets `deleted=1`; Hard — permanent `DELETE FROM`) and the **balance handling** (Keep — insert a single balancing credit/debit so the user's balance is unchanged; Wipe — let the balance settle to 0). Previously the action was hard-wired to "hard-delete everything + re-credit positive balance," with no admin choice.
+– **New:-** New helper `woo_wallet_purge_user_transactions( $user_id, $delete_mode, $balance_handling )` exposes the same flow to extensions. New action `woo_wallet_user_transactions_purged` fires on completion. Legacy filter `woo_wallet_credit_user_after_delete_log` is still honored when `$balance_handling === 'keep'` for back-compat.
+– **Fix:-** Order-side cashback recompute (`recalculate_order_cashback`) now writes a compensating `cashback_adjustment` ledger row instead of mutating the original cashback row's `amount` in place. Restores the append-only ledger invariant and keeps the `_current_woo_wallet_balance` cache in sync. Removed the noisy `woocommerce_order_after_calculate_totals` recompute hook.
+– **Fix:-** Multi-currency parity for order-side cashback: `min_cart_amount` and `max_cashback_amount` are now converted from base to the order's currency on `woo_wallet_form_order_cashback_amount` (matches the existing cart-side filter). Non-base orders no longer compute against raw base-currency settings.
+– **Fix:-** Coupon cashback amount is now recomputed at credit time from the live order's coupons rather than trusting the checkout-time meta. Order edits no longer desync stored coupon cashback. The legacy `discount_total`/`total` rewrite is replaced with a non-discount fee item; gated by `woo_wallet_legacy_coupon_cashback_total_mutation` so existing reports are not affected on upgrade.
+– **Fix:-** Negative balances are now preserved symmetrically when "Keep balance" is chosen for Delete Logs — a debt of `-25` inserts a balancing **debit** of `25` instead of being silently zeroed out by the old `if ( $current_balance && ... )` + positive-only `credit()` path.
+– **Tweak:-** New filter `woo_wallet_cashback_clawback_strategy` lets sites override the partial / full-or-skip / force-negative reversal policy.
+– **Tweak:-** Custom `WooWalletAction` subclasses keep working unchanged: `init_settings()` now reads the merged option first and falls back to the legacy per-action option, so third-party actions that have not migrated still load their settings correctly.
+– **Tweak:-** `POST /wc/v3/wallet/settings/action` is kept as a thin deprecated shim that delegates to `/section` for one minor cycle; the React UI no longer calls it.
+– **Tweak:-** Removed dead pre-React rendering code: legacy server-rendered form callbacks (`show_navigation`, `show_forms`, all `callback_*` field renderers) in the settings API helper, plus the legacy `display_action_settings` / `display_actions_table` handlers and the orphan `WooWalletAction::admin_options()` form renderer. The `?page=woo-wallet-actions` redirect shim remains for old bookmarks.
+– **Tweak:-** Database migration `1.6.1` is idempotent — fresh installs default to per-order cap scope; upgraded installs preserve per-item cap scope and legacy coupon-cashback total mutation behaviour, and per-action option rows are merged into `_wallet_settings_actions` without removing the legacy rows.
 
-= v1.5.2 ( May 02, 2024 ) =
-- **Added:-** Support for WooCommerce HPOS.
-- **Added:-** Support for WooCommerce block cart & checkout.
-- **Added:-** Partial payment option for WooCommerce block cart & checkout.
-- **New:-** Now customer can enter amount they want to redeem at cart & checkout page.
-- **Fix:-** Conflict with WooCommerce Square plugin.
-- **Fix:-** Partial payment amount not debited issue for WooCommerce block checkout.
-- **Fix:-** Coupon cashback issue for WooCommerce block checkout.
+= v1.6.0 (May 04, 2026) =
+– **New:-** add new settings fields and hooks for Woo Wallet
+– **New:-** Implemented various input fields including AttachmentField, CheckboxField, ColorField, HtmlField, MultiSelectField, MulticheckField, NumberField, PasswordField, RadioField, SelectField, TextField, and TextareaField.
+– **New:-** Created a custom hook `useSettings` for managing settings state, loading, and saving.
+– **New:-** Added a field types registry to manage different input types dynamically.
+– **New:-** Introduced CSS styles for the new settings interface, ensuring compatibility with light and dark themes.
+– **New:-** Integrated REST API calls for fetching and saving settings data.
+– **New:-** Multi-currency provider abstraction with first-class adapters for WOOCS/FOX, WPML/WCML, CURCY, Aelia, and YayCurrency, plus a generic fallback for any other plugin that filters `woocommerce_currency`.
+– **New:-** Per-row currency audit columns (`original_amount`, `original_currency`, `original_rate`, `mode`) and a `(user_id, currency, deleted)` index on the wallet transactions table for accurate historical reporting.
+– **New:-** Additive REST surface: `/terawallet/v1/me/balance` now returns `base_currency`, `base_amount`, `mode`, and a `balances[]` array; `/me/transfer` and `/me/topup` accept an optional `currency` argument; `/wc/v3/wallet` exposes the new audit fields and a `currency` query filter.
+– **New:-** Admin endpoint `GET /wc/v3/wallet/multicurrency` and a Currency Mode panel in the React settings app that surfaces the active provider, base/active currencies, and the effective ledger mode.
+– **Security:-** Hardened the debit balance gate in `recode_transaction()` to read the raw ledger SUM directly instead of the filtered `get_wallet_balance()` value. Closes an overdraft window where any third-party hook on `woo_wallet_current_balance` (credit-expiry, redeemed-totals plugins) could inflate the perceived balance and let a user debit into negative territory.
+– **Security:-** Wrapped `wallet_credit_purchase()` in a per-order `GET_LOCK` with re-fetch inside the lock so duplicate gateway IPN deliveries (PayPal/Stripe webhook retries) can no longer both pass the `_wc_wallet_purchase_credited` meta guard and double-credit the wallet.
+– **Fix:-** Partial-payment debit now records the order currency, matching the cancellation refund — no more debit/refund pairs landing in different currencies.
+– **Fix:-** Cashback debit on order cancellation now passes the order currency, eliminating a second source of mixed-currency rows.
+– **Fix:-** Mode-aware balance reads — single-base sites continue to sum normalized rows; per-currency sites filter by the active currency, so a user with EUR and USD activity no longer sees an undefined-currency total.
+– **Tweak:-** Top-up orders honour the requested currency end-to-end: `WooWallet_Topup_Service::create_order()` calls `$order->set_currency()` before totals are calculated, so the gateway charges in the requested currency.
+– **Tweak:-** `woo_wallet_wc_price_args()` is now mode-aware; in per-currency mode it defaults to the active provider's currency while explicit per-row currency overrides still win.
+– **Tweak:-** Database migration `1.6.0` is idempotent — fresh installs and upgrades both land on the new schema; pre-1.6 rows keep working with `original_*` NULL and `mode=0`.
 
-= 1.5.1 - 2024-03-20 =
-* Added - Escaping functions for rendering html content.
+= v1.5.18 (April 23, 2026) =
+– **New:-** Added Go Pro admin page showcasing Pro features with a Free vs Pro comparison and license activation UI, replacing the legacy Extensions page.
+– **Security:-** Implement idempotency key for wallet transfers to prevent duplicate submissions and TOCTOU race condition vulnerabilities.
+– **Tweak:-** Enhanced partial payment tooltip to provide a clearer breakdown of amounts debited from the wallet and paid via other gateways.
+– **Tweak:-** Enhance database schema and optimize wallet transaction queries for improved performance.
+– **Tweak:-** Improved CSV exporter for wallet transactions with better query handling.
+– **Tweak:-** Update Pro upgrade URLs with UTM parameters for better tracking.
 
-= 1.5.0 - 2024-03-09 =
-* Fix - Vulnerability: Cross Site Scripting (XSS)
+= v1.5.17 (March 12, 2026) =
+– **Fix:-** Remove space in limit parameter for wallet transactions query.
+– **Fix:-** Simplify wallet transactions query preparation by removing redundant parameter checks.
 
-= 1.4.11 - 2024-03-01 =
-* Fix - Compatibility issues with PHP 8.1
-* Fix - Missing Authorization to Authenticated (Subscriber+) User Email Export
+= v1.5.16 (February 12, 2026) =
+– **Tweak:-** Enhance SQL query construction for wallet transactions with improved safety and readability.
+– **Tweak:-** Remove return type declarations for compatibility and enhance permission checks in content handling.
+– **Tweak:-** Update version retrieval for script and style assets.
+– **Tweak:-** Enhance partial payment validation in frontend.
+– **Tweak:-** Add checks for zero currency rates in multi-currency conversion methods
+– **Tweak:-** Database Lock to serialize requests for the same user.
+– **Tweak:-** Adjust wallet transfer logic to debit before crediting, ensuring proper transaction flow.
 
-= 1.4.10 - 2023-11-23 =
-* New - Added WooCommerce Multilingual & Multicurrency with WPML plugin support.
-* Fix - Compatibility issue with Dokan 3.8
-* Fix - PHP issues
+= v1.5.15 (December 10, 2025) =
+– **New:-** User wallet dashboard design.
+– **Tweak:-** Replace thickbox with wc backbone modal.
+– **Fix:-** Removed moment js and used WordPress core momentjs Library.
+– **Added:-** WordPress 6.9 support.
 
-= 1.4.9 - 2023-08-17 =
-* New - Added sell your content action ( Using this action you can sell your site content using wallet balance).
-* New - Export user wallet balance ( Now site admin also export only user balance of the website in CSV file).
-* Fix - Compatibility issue with digits plugin.
-* Fix - Wallet transactions details table.
-* Add - Support for WordPress 6.3 and WooCommerce 8.0
+= v1.5.14 (October 08, 2025) =
+– **Fix:-** RTL CSS issue.
 
-= 1.4.8 - 2023-06-22 =
-* New - Redesign wallet admin panel.
-* New - Added support for WooCommerce block checkout.
-* New - Added support for FOX – Currency Switcher Professional for WooCommerce
-* Fix - PHP 8.2 issues.
+= v1.5.13 (August 21, 2025) =
+– **Fix:-** PHP warning.
 
-= 1.4.7 - 2023-04-05 =
-* Fix - Refund issue.
-* Fix - WooCommerce add to cart notice.
-* Added - WP 6.2 support.
+= v1.5.12 (August 21, 2025) =
+– **New:-** Date range filter in wallet transaction page.
+– **New:-** Settings panel design.
+– **New:-** Now site admin can enable/disable wallet topup.
+– **Fix:-** Partial payment issue.
+– **Fix:-** Cashback display issue on cart and checkout page.
 
-= 1.4.6 - 2023-01-19 =
-* Fix - Duplicate order issue and negative wallet balance.
-* Fix - Partial payment issue for draft orders.
+= v1.5.11 ( May 08, 2025) =
+– **Fix:-** Text Domain loading issue.
 
-= 1.4.5 - 2022-12-24 =
-* Add - Hooks in referral action.
-* Fix - Transaction exporter.
-
-= 1.4.4 - 2022-11-14 =
-* Fix - Security issue on the function lock_unlock_terawallet.
-
-= 1.4.3 - 2022-11-11 =
-* Fix - Datatable ajax issue.
-
-= 1.4.2 - 2022-11-11 =
-* Fix - Mini wallet nav menu location.
-
-= 1.4.1 - 2022-11-11 =
-* Fix - Fix Cannot uncheck checkbox issue in plugin settings page.
-
-= 1.4.0 - 2022-11-4 =
-* Fix - Plugin CSRF issue ( Thanks Muhammad Daffa ).
-* Add - Compatibility with WP 6.1
-
-[See changelog for all versions](https://raw.githubusercontent.com/malsubrata/woo-wallet/master/changelog.txt).
+= v1.5.10 ( December 12, 2024) =
+– **Fix:-** Refund issue.
 
 == Upgrade Notice ==
 
-= 1.3 =
+= 1.6.1 =
+Security: closes a race in the Delete Logs bulk action and prevents double-credit of cashback on duplicate order-status transitions / replayed webhooks — recommended upgrade for all sites. Two new opt-in cashback settings added: enable *Refund clawback* (Settings → Wallet Credit) to claw back cashback when orders are refunded; enable *Allow negative clawback* to permit exact reversal when the customer has already spent the credit. The `max_cashback_scope` setting defaults to `per_order` on fresh installs; upgraded sites are automatically migrated to `per_item` to preserve existing behaviour. The React Actions tab is now part of the standard settings flow and persists to a single `_wallet_settings_actions` option (legacy per-action option rows are kept as a rollback safety net). The Delete Logs bulk action now opens a modal so admins can pick delete mode (soft / hard) and balance handling (keep / wipe). Schema migration is automatic and idempotent — back up before upgrading.
+
+= 1.6.0 =
+Security: closes an overdraft window in the debit balance gate and a duplicate-IPN double-credit window in the top-up callback — recommended upgrade for all sites. Also adds multi-currency provider adapters (WOOCS, WCML, CURCY, Aelia, YayCurrency + generic fallback), fixes ledger currency bugs in partial-payment and cashback flows, and extends the REST API with per-currency fields. Schema migration is automatic and idempotent — back up before upgrading.
+
+= 1.5.18 =
+Security fix for wallet transfer race conditions, new Go Pro admin page, and database query optimizations.
